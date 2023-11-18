@@ -157,17 +157,16 @@ wave_t open_wave_file(const char *filepath)
     return wave_file;
 }
 
-
 void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
     if (uMsg == WOM_DONE) {
         *((int32_t *) dwInstance) = 0;
     }
 }
 
-
 void play(wave_t *wave_file)
 {
     int32_t audio_loop = 1;
+    int32_t paused = 0;
     WAVEFORMATEX wfx = {0};
     wfx.nSamplesPerSec = wave_file->fmt_chunk.sample_rate;
     wfx.wBitsPerSample = wave_file->fmt_chunk.bits_per_sample;
@@ -204,14 +203,25 @@ void play(wave_t *wave_file)
     result = waveOutWrite(hWaveOut, &header, sizeof(WAVEHDR));
     if(result != MMSYSERR_NOERROR) {
         fprintf(stderr, "ERROR: While writing to waveOut device!\n");
-        waveOutClose(hWaveOut);
         waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
         waveOutClose(hWaveOut);
         free(wave_file->data_chunk.data);
         exit(-1);
     }
-
-    while(audio_loop);
+    
+    while(audio_loop) {
+        if(GetAsyncKeyState(0x53) & 0x8000) {
+            audio_loop = 0;
+        }
+        if(GetAsyncKeyState(0x50) & 0x8000) {
+            if(paused) {
+                waveOutRestart(hWaveOut);
+            } else {
+                waveOutPause(hWaveOut);
+            }
+            paused = !paused;
+        }
+    }
  
     waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
     waveOutClose(hWaveOut);
