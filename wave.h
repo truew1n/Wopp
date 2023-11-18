@@ -209,19 +209,7 @@ void play(wave_t *wave_file)
         exit(-1);
     }
     
-    while(audio_loop) {
-        if(GetAsyncKeyState(0x53) & 0x8000) {
-            audio_loop = 0;
-        }
-        if(GetAsyncKeyState(0x50) & 0x8000) {
-            if(paused) {
-                waveOutRestart(hWaveOut);
-            } else {
-                waveOutPause(hWaveOut);
-            }
-            paused = !paused;
-        }
-    }
+    while(audio_loop);
  
     waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
     waveOutClose(hWaveOut);
