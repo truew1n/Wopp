@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <Windows.h>
 
 #define RIFF_CHUNK_ID 0x52494646
 #define WAVE_CHUNK_ID 0x57415645
@@ -154,4 +155,64 @@ wave_t open_wave_file(const char *filepath)
     wave_file.data_chunk = data_chunk;
 
     return wave_file;
+}
+
+
+void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
+    if (uMsg == WOM_DONE) {
+        *((int32_t *) dwInstance) = 0;
+    }
+}
+
+
+void play(wave_t *wave_file)
+{
+    int32_t audio_loop = 1;
+    WAVEFORMATEX wfx = {0};
+    wfx.nSamplesPerSec = wave_file->fmt_chunk.sample_rate;
+    wfx.wBitsPerSample = wave_file->fmt_chunk.bits_per_sample;
+    wfx.nChannels = wave_file->fmt_chunk.num_channels;
+    wfx.wFormatTag = wave_file->fmt_chunk.audio_format;
+    wfx.nBlockAlign = wave_file->fmt_chunk.block_align;
+    wfx.nAvgBytesPerSec = wave_file->fmt_chunk.byte_rate;
+    wfx.cbSize = 0;
+
+    HWAVEOUT hWaveOut = NULL;
+    MMRESULT result = waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) &audio_loop, CALLBACK_FUNCTION);
+    if(result != MMSYSERR_NOERROR) {
+        fprintf(stderr, "ERROR: Cannot open waveOut device!\n");
+        free(wave_file->data_chunk.data);
+        exit(-1);
+    }
+
+    WAVEHDR header = {0};
+    header.lpData = wave_file->data_chunk.data;
+    header.dwBufferLength = wave_file->data_chunk.subchunk_size;
+    header.dwBytesRecorded = 0;
+    header.dwUser = 0;
+    header.dwFlags = 0;
+    header.dwLoops = 0;
+
+    result = waveOutPrepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
+    if(result != MMSYSERR_NOERROR) {
+        fprintf(stderr, "ERROR: In preparing waveOut header!\n");
+        waveOutClose(hWaveOut);
+        free(wave_file->data_chunk.data);
+        exit(-1);
+    }
+ 
+    result = waveOutWrite(hWaveOut, &header, sizeof(WAVEHDR));
+    if(result != MMSYSERR_NOERROR) {
+        fprintf(stderr, "ERROR: While writing to waveOut device!\n");
+        waveOutClose(hWaveOut);
+        waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
+        waveOutClose(hWaveOut);
+        free(wave_file->data_chunk.data);
+        exit(-1);
+    }
+
+    while(audio_loop);
+ 
+    waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
+    waveOutClose(hWaveOut);
 }
