@@ -139,11 +139,11 @@ wave_t open_wave_file(const char *filepath)
 
     fread(&data_chunk.subchunk_size, sizeof(data_chunk.subchunk_size), 1, file);
 
-    // int32_t calculated_data_subchunk_size = fmt_chunk.sample_rate * fmt_chunk.num_channels * fmt_chunk.bits_per_sample / 8;
-    // if(data_chunk.subchunk_size != calculated_data_subchunk_size) {
-    //     fprintf(stderr, "DATA_SUBCHUNK_ID:\nGot: 0x%04x\nExpected: 0x%04x\n", data_chunk.subchunk_size, calculated_data_subchunk_size);
-    //     exit(-1);
-    // }
+    int32_t calculated_data_subchunk_size = calculated_chunk_size - sizeof(fmt_chunk) - 12;
+    if(data_chunk.subchunk_size != calculated_data_subchunk_size) {
+        fprintf(stderr, "DATA_SUBCHUNK_ID:\nGot: 0x%04x\nExpected: 0x%04x\n", data_chunk.subchunk_size, calculated_data_subchunk_size);
+        exit(-1);
+    }
 
     data_chunk.data = (int8_t *) malloc(sizeof(data_chunk.data) * data_chunk.subchunk_size);
     fread(data_chunk.data, data_chunk.subchunk_size, 1, file);
