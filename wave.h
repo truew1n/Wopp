@@ -160,7 +160,7 @@ wave_t open_wave_file(const char *filepath)
     fread(&data_chunk.subchunk_size, sizeof(data_chunk.subchunk_size), 1, file);
 
     int32_t calculated_data_subchunk_size = calculated_chunk_size - sizeof(fmt_chunk) - 12;
-    if(data_chunk.subchunk_size < calculated_data_subchunk_size) {
+    if(data_chunk.subchunk_size > calculated_data_subchunk_size) {
         fprintf(stderr, "DATA_SUBCHUNK_SIZE:\nGot: 0x%04x\nExpected: 0x%04x\n", data_chunk.subchunk_size, calculated_data_subchunk_size);
         exit(-1);
     }
