@@ -10,6 +10,8 @@
 #define FMT_CHUNK_ID 0x666d7420
 #define DATA_CHUNK_ID 0x64617461
 
+#define LIST_CHUNK_ID 0x4C495354
+
 #define PCM_AUDIO_FORMAT 1
 
 typedef struct riff_chunk_t {
@@ -88,6 +90,8 @@ wave_t open_wave_file(const char *filepath)
     fmt_chunk_t fmt_chunk = {0};
     data_chunk_t data_chunk = {0};
 
+    int32_t chunk_id = 0;
+
     fread(&riff_chunk, sizeof(riff_chunk), 1, file);
 
     if(le_to_be(riff_chunk.chunk_id) != RIFF_CHUNK_ID) {
@@ -130,6 +134,22 @@ wave_t open_wave_file(const char *filepath)
         exit(-1);
     }
 
+    fread(&chunk_id, sizeof(chunk_id), 1, file);
+    switch(le_to_be(chunk_id)) {
+        case LIST_CHUNK_ID: {
+            int32_t list_subchunk_size = 0;
+            fread(&list_subchunk_size, sizeof(list_subchunk_size), 1, file);
+            calculated_chunk_size -= (list_subchunk_size + 8);
+            fseek(file, list_subchunk_size, SEEK_CUR);
+            break;
+        }
+        case DATA_CHUNK_ID: {
+            int32_t current_file_pointer_position = ftell(file);
+            fseek(file, current_file_pointer_position - sizeof(chunk_id), SEEK_SET);
+            break;
+        }
+    }
+
     fread(&data_chunk.subchunk_id, sizeof(data_chunk.subchunk_id), 1, file);
 
     if(le_to_be(data_chunk.subchunk_id) != DATA_CHUNK_ID) {
@@ -140,8 +160,8 @@ wave_t open_wave_file(const char *filepath)
     fread(&data_chunk.subchunk_size, sizeof(data_chunk.subchunk_size), 1, file);
 
     int32_t calculated_data_subchunk_size = calculated_chunk_size - sizeof(fmt_chunk) - 12;
-    if(data_chunk.subchunk_size != calculated_data_subchunk_size) {
-        fprintf(stderr, "DATA_SUBCHUNK_ID:\nGot: 0x%04x\nExpected: 0x%04x\n", data_chunk.subchunk_size, calculated_data_subchunk_size);
+    if(data_chunk.subchunk_size < calculated_data_subchunk_size) {
+        fprintf(stderr, "DATA_SUBCHUNK_SIZE:\nGot: 0x%04x\nExpected: 0x%04x\n", data_chunk.subchunk_size, calculated_data_subchunk_size);
         exit(-1);
     }
 
@@ -176,8 +196,8 @@ void play(wave_t *wave_file)
     wfx.nAvgBytesPerSec = wave_file->fmt_chunk.byte_rate;
     wfx.cbSize = 0;
 
-    HWAVEOUT hWaveOut = NULL;
-    MMRESULT result = waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) &audio_loop, CALLBACK_FUNCTION);
+    HWAVEOUT hwave_out = NULL;
+    MMRESULT result = waveOutOpen(&hwave_out, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) &audio_loop, CALLBACK_FUNCTION);
     if(result != MMSYSERR_NOERROR) {
         fprintf(stderr, "ERROR: Cannot open waveOut device!\n");
         free(wave_file->data_chunk.data);
@@ -192,25 +212,25 @@ void play(wave_t *wave_file)
     header.dwFlags = 0;
     header.dwLoops = 0;
 
-    result = waveOutPrepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
+    result = waveOutPrepareHeader(hwave_out, &header, sizeof(WAVEHDR));
     if(result != MMSYSERR_NOERROR) {
         fprintf(stderr, "ERROR: In preparing waveOut header!\n");
-        waveOutClose(hWaveOut);
+        waveOutClose(hwave_out);
         free(wave_file->data_chunk.data);
         exit(-1);
     }
  
-    result = waveOutWrite(hWaveOut, &header, sizeof(WAVEHDR));
+    result = waveOutWrite(hwave_out, &header, sizeof(WAVEHDR));
     if(result != MMSYSERR_NOERROR) {
         fprintf(stderr, "ERROR: While writing to waveOut device!\n");
-        waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
-        waveOutClose(hWaveOut);
+        waveOutUnprepareHeader(hwave_out, &header, sizeof(WAVEHDR));
+        waveOutClose(hwave_out);
         free(wave_file->data_chunk.data);
         exit(-1);
     }
     
     while(audio_loop);
  
-    waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
-    waveOutClose(hWaveOut);
+    waveOutUnprepareHeader(hwave_out, &header, sizeof(WAVEHDR));
+    waveOutClose(hwave_out);
 }
