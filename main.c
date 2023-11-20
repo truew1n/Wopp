@@ -101,8 +101,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
         NULL
     );
 
-    if(hsong_mutex == NULL) {
-        fprintf(stderr, "ERROR: Failed to create unnamed mutex!\n");
+    if(hsong_mutex == NULL || hwave_mutex == NULL) {
+        fprintf(stderr, "ERROR: Failed to create unnamed mutexes!\n");
         exit(-1);
     }
 
@@ -122,7 +122,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     if(num_files == 1) {
                         WaitForSingleObject(hsong_mutex, INFINITE);
                         DragQueryFileA(hdrop, 0, song_data.filepath, sizeof(song_data.filepath));
-
+                        
                         song_data.song_state = NONE;
                         hsong_thread = CreateThread(NULL, 0, SongThread, &song_data, 0, &song_thread_id);
                         ReleaseMutex(hsong_mutex);
@@ -131,6 +131,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     break;
                 }
                 case WM_QUIT: {
+                    WaitForSingleObject(hsong_mutex, INFINITE);
+                    if(song_data.song_state == PLAYING) {
+                        song_data.song_state = FINISHED;
+                    }
+                    ReleaseMutex(hsong_mutex);
+                    WaitForSingleObject(hwave_mutex, INFINITE);
+                    ReleaseMutex(hwave_mutex);
                     running = 0;
                     break;
                 }
@@ -139,15 +146,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
             DispatchMessageW(&msg);
         }
 
-        // StretchDIBits(
-        //     hdc, 0, 0,
-        //     BitmapWidth, BitmapHeight,
-        //     0, 0,
-        //     BitmapWidth, BitmapHeight,
-        //     memory, &bitmap_info,
-        //     DIB_RGB_COLORS,
-        //     SRCCOPY
-        // );
+        StretchDIBits(
+            hdc, 0, 0,
+            BitmapWidth, BitmapHeight,
+            0, 0,
+            BitmapWidth, BitmapHeight,
+            memory, &bitmap_info,
+            DIB_RGB_COLORS,
+            SRCCOPY
+        );
     }
 
     CloseHandle(hsong_mutex);
