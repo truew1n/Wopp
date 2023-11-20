@@ -120,9 +120,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     HDROP hdrop = (HDROP) msg.wParam;
                     UINT num_files = DragQueryFileA(hdrop, 0xFFFFFFFF, NULL, 0);
                     if(num_files == 1) {
+                        WaitForSingleObject(hsong_mutex, INFINITE);
                         DragQueryFileA(hdrop, 0, song_data.filepath, sizeof(song_data.filepath));
-                        
+
+                        song_data.song_state = NONE;
                         hsong_thread = CreateThread(NULL, 0, SongThread, &song_data, 0, &song_thread_id);
+                        ReleaseMutex(hsong_mutex);
                     }
                     ReleaseMutex(hwave_mutex);
                     break;
@@ -136,15 +139,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
             DispatchMessageW(&msg);
         }
 
-        StretchDIBits(
-            hdc, 0, 0,
-            BitmapWidth, BitmapHeight,
-            0, 0,
-            BitmapWidth, BitmapHeight,
-            memory, &bitmap_info,
-            DIB_RGB_COLORS,
-            SRCCOPY
-        );
+        // StretchDIBits(
+        //     hdc, 0, 0,
+        //     BitmapWidth, BitmapHeight,
+        //     0, 0,
+        //     BitmapWidth, BitmapHeight,
+        //     memory, &bitmap_info,
+        //     DIB_RGB_COLORS,
+        //     SRCCOPY
+        // );
     }
 
     CloseHandle(hsong_mutex);
@@ -231,6 +234,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
     while(TRUE) {
         WaitForSingleObject(hsong_mutex, INFINITE);
         if(tsong_data->song_state == FINISHED) {
+            ReleaseMutex(hsong_mutex);
             break;
         }
         if(tsong_data->song_state != local_state) {
@@ -247,11 +251,12 @@ DWORD WINAPI SongThread(LPVOID lpParam)
     tsong_data->song_state = FINISHED;
     ReleaseMutex(hsong_mutex);
 
+    free(wave_file.data_chunk.data);
+
     waveOutReset(hwave_out);
     waveOutUnprepareHeader(hwave_out, &header, sizeof(WAVEHDR));
     waveOutClose(hwave_out);
-    
-    free(wave_file.data_chunk.data);
+       
     ReleaseMutex(hwave_mutex);
     return 0;
 }
