@@ -14,13 +14,21 @@
 
 #define PCM_AUDIO_FORMAT 1
 
-typedef struct riff_chunk_t {
+typedef enum state_t {
+    NONE,
+    PLAYING,
+    PAUSED,
+    UNPAUSED,
+    FINISHED
+} state_t;
+
+typedef struct wave_riff_chunk_t {
     int32_t chunk_id;
     int32_t chunk_size;
     int32_t format;
-} riff_chunk_t;
+} wave_riff_chunk_t;
 
-typedef struct fmt_chunk_t {
+typedef struct wave_fmt_chunk_t {
     int32_t subchunk_id;
     int32_t subchunk_size;
     int16_t audio_format;
@@ -29,18 +37,18 @@ typedef struct fmt_chunk_t {
     int32_t byte_rate;
     int16_t block_align;
     int16_t bits_per_sample;
-} fmt_chunk_t;
+} wave_fmt_chunk_t;
 
-typedef struct data_chunk_t {
+typedef struct wave_data_chunk_t {
     int32_t subchunk_id;
     int32_t subchunk_size;
     int8_t *data;
-} data_chunk_t;
+} wave_data_chunk_t;
 
 typedef struct wave_t {
-    riff_chunk_t riff_chunk;
-    fmt_chunk_t fmt_chunk;
-    data_chunk_t data_chunk;
+    wave_riff_chunk_t riff_chunk;
+    wave_fmt_chunk_t fmt_chunk;
+    wave_data_chunk_t data_chunk;
 } wave_t;
 
 /*
@@ -64,7 +72,7 @@ int32_t get_file_size(FILE *file)
     return size;
 }
 
-void print_wave_info(wave_t *wave_file)
+void wave_print(wave_t *wave_file)
 {
     printf("Audio Format: %i\n", wave_file->fmt_chunk.audio_format);
     printf("Num Channels: %i\n", wave_file->fmt_chunk.num_channels);
@@ -74,7 +82,7 @@ void print_wave_info(wave_t *wave_file)
     printf("Bits Per Sample: %i\n", wave_file->fmt_chunk.bits_per_sample);
 }
 
-wave_t open_wave_file(const char *filepath)
+wave_t wave_open(const char *filepath)
 {
     FILE *file = fopen(filepath, "rb");
 
@@ -86,9 +94,9 @@ wave_t open_wave_file(const char *filepath)
     int32_t calculated_chunk_size = get_file_size(file) - 8;
 
     wave_t wave_file = {0};
-    riff_chunk_t riff_chunk = {0};
-    fmt_chunk_t fmt_chunk = {0};
-    data_chunk_t data_chunk = {0};
+    wave_riff_chunk_t riff_chunk = {0};
+    wave_fmt_chunk_t fmt_chunk = {0};
+    wave_data_chunk_t data_chunk = {0};
 
     int32_t chunk_id = 0;
 
@@ -175,62 +183,4 @@ wave_t open_wave_file(const char *filepath)
     wave_file.data_chunk = data_chunk;
 
     return wave_file;
-}
-
-void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2) {
-    if (uMsg == WOM_DONE) {
-        *((int32_t *) dwInstance) = 0;
-    }
-}
-
-void play(wave_t *wave_file)
-{
-    int32_t audio_loop = 1;
-    int32_t paused = 0;
-    WAVEFORMATEX wfx = {0};
-    wfx.nSamplesPerSec = wave_file->fmt_chunk.sample_rate;
-    wfx.wBitsPerSample = wave_file->fmt_chunk.bits_per_sample;
-    wfx.nChannels = wave_file->fmt_chunk.num_channels;
-    wfx.wFormatTag = wave_file->fmt_chunk.audio_format;
-    wfx.nBlockAlign = wave_file->fmt_chunk.block_align;
-    wfx.nAvgBytesPerSec = wave_file->fmt_chunk.byte_rate;
-    wfx.cbSize = 0;
-
-    HWAVEOUT hwave_out = NULL;
-    MMRESULT result = waveOutOpen(&hwave_out, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) &audio_loop, CALLBACK_FUNCTION);
-    if(result != MMSYSERR_NOERROR) {
-        fprintf(stderr, "ERROR: Cannot open waveOut device!\n");
-        free(wave_file->data_chunk.data);
-        exit(-1);
-    }
-
-    WAVEHDR header = {0};
-    header.lpData = wave_file->data_chunk.data;
-    header.dwBufferLength = wave_file->data_chunk.subchunk_size;
-    header.dwBytesRecorded = 0;
-    header.dwUser = 0;
-    header.dwFlags = 0;
-    header.dwLoops = 0;
-
-    result = waveOutPrepareHeader(hwave_out, &header, sizeof(WAVEHDR));
-    if(result != MMSYSERR_NOERROR) {
-        fprintf(stderr, "ERROR: In preparing waveOut header!\n");
-        waveOutClose(hwave_out);
-        free(wave_file->data_chunk.data);
-        exit(-1);
-    }
- 
-    result = waveOutWrite(hwave_out, &header, sizeof(WAVEHDR));
-    if(result != MMSYSERR_NOERROR) {
-        fprintf(stderr, "ERROR: While writing to waveOut device!\n");
-        waveOutUnprepareHeader(hwave_out, &header, sizeof(WAVEHDR));
-        waveOutClose(hwave_out);
-        free(wave_file->data_chunk.data);
-        exit(-1);
-    }
-    
-    while(audio_loop);
- 
-    waveOutUnprepareHeader(hwave_out, &header, sizeof(WAVEHDR));
-    waveOutClose(hwave_out);
 }
