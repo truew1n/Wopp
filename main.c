@@ -148,6 +148,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
     }
 
     CloseHandle(hsong_mutex);
+    CloseHandle(hwave_mutex);
     return 0;
 }
 
@@ -226,7 +227,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
 
     state_t local_state = PLAYING;
     tsong_data->song_state = PLAYING;
-    ReleaseMutex(hwave_mutex);
+    ReleaseMutex(hsong_mutex);
     while(TRUE) {
         WaitForSingleObject(hsong_mutex, INFINITE);
         if(tsong_data->song_state == FINISHED) {
