@@ -1,7 +1,8 @@
 #include <stdio.h>
+#include <time.h>
+#include <float.h>
 
 #include "wave.h"
-
 
 
 int32_t ClientWidth;
@@ -12,11 +13,24 @@ int32_t BitmapHeight;
 
 int8_t running = 1;
 
-
 LRESULT CALLBACK WndProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
 void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
 DWORD WINAPI SongThread(LPVOID lpParam);
 
+uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
+
+typedef uint32_t color_t;
+void gc_putpixel(void *memory, int32_t x, int32_t y, color_t color);
+void gc_fill_screen(void *memory, color_t color);
+void gc_fill_rectangle(void *memory, int32_t x, int32_t y, int32_t width, int32_t height, color_t color);
+
+typedef enum state_t {
+    NONE,
+    PLAYING,
+    PAUSED,
+    UNPAUSED,
+    FINISHED
+} state_t;
 
 typedef struct song_data_t {
     char filepath[MAX_PATH];
@@ -25,9 +39,9 @@ typedef struct song_data_t {
 
 HANDLE hsong_mutex;
 HANDLE hwave_mutex;
-song_data_t song_data = {"", NONE};
+song_data_t song_data = {0, NONE};
 HANDLE hsong_thread = {0};
-DWORD song_thread_id = {0};
+DWORD song_thread_id = 0;
 
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdshow)
@@ -41,7 +55,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
 
     if(!RegisterClassW(&wc)) return -1;
     
-    int32_t Width = 1600;
+    int32_t Width = 800;
     int32_t Height = 800;
 
     RECT window_rect = {0};
@@ -101,10 +115,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
         NULL
     );
 
-    if(hsong_mutex == NULL || hwave_mutex == NULL) {
+    if(!(hsong_mutex && hwave_mutex)) {
         fprintf(stderr, "ERROR: Failed to create unnamed mutexes!\n");
         exit(-1);
     }
+
 
     while(running) {
         MSG msg;
@@ -136,8 +151,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                         song_data.song_state = FINISHED;
                     }
                     ReleaseMutex(hsong_mutex);
-                    WaitForSingleObject(hwave_mutex, INFINITE);
-                    ReleaseMutex(hwave_mutex);
                     running = 0;
                     break;
                 }
@@ -173,6 +186,7 @@ LRESULT CALLBACK WndProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             return DefWindowProcW(hWnd, msg, wp, lp);
         }
     }
+    return 0;
 }
 
 void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2)
@@ -193,7 +207,6 @@ DWORD WINAPI SongThread(LPVOID lpParam)
     song_data_t *tsong_data = (song_data_t *) lpParam;
     wave_t wave_file = wave_open(tsong_data->filepath);
 
-    int32_t paused = 0;
     WAVEFORMATEX wfx = {0};
     wfx.nSamplesPerSec = wave_file.fmt_chunk.sample_rate;
     wfx.wBitsPerSample = wave_file.fmt_chunk.bits_per_sample;
@@ -210,7 +223,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
         free(wave_file.data_chunk.data);
         exit(-1);
     }
-
+    
     WAVEHDR header = {0};
     header.lpData = wave_file.data_chunk.data;
     header.dwBufferLength = wave_file.data_chunk.subchunk_size;
@@ -235,6 +248,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
         exit(-1);
     }
 
+
     state_t local_state = PLAYING;
     tsong_data->song_state = PLAYING;
     ReleaseMutex(hsong_mutex);
@@ -252,6 +266,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
             }
         }
         local_state = tsong_data->song_state;
+
         ReleaseMutex(hsong_mutex);
     }
     WaitForSingleObject(hsong_mutex, INFINITE);
@@ -266,4 +281,40 @@ DWORD WINAPI SongThread(LPVOID lpParam)
        
     ReleaseMutex(hwave_mutex);
     return 0;
+}
+
+uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void gc_putpixel(void *memory, int32_t x, int32_t y, color_t color)
+{
+    if((x >= 0 && x < BitmapWidth) && (y >= 0 && y < BitmapHeight))
+        *((color_t *) memory + (x + y * BitmapWidth)) = color; 
+}
+
+void gc_fill_screen(void *memory, color_t color)
+{
+    for(int32_t j = 0; j < BitmapHeight; ++j) {
+        for(int32_t i = 0; i < BitmapWidth; ++i) {
+            gc_putpixel(memory, i, j, color);
+        }
+    }
+}
+
+void gc_fill_rectangle(void *memory, int32_t x, int32_t y, int32_t width, int32_t height, color_t color)
+{
+    int8_t ws = width < 0;
+    int8_t hs = height < 0;
+    int32_t x0 = (x + width) * ws + x * !ws,
+            y0 = (y + height) * hs + y * !hs,
+            x1 = x * ws + (x + width) * !ws,
+            y1 = y * hs + (y + height) * !hs;
+
+    for(int32_t j = y0; j < y1; ++j) {
+        for(int32_t i = x0; i < x1; ++i) {
+            gc_putpixel(memory, i, j, color);
+        }
+    }
 }

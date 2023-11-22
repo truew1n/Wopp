@@ -14,13 +14,7 @@
 
 #define PCM_AUDIO_FORMAT 1
 
-typedef enum state_t {
-    NONE,
-    PLAYING,
-    PAUSED,
-    UNPAUSED,
-    FINISHED
-} state_t;
+typedef char cint8_t;
 
 typedef struct wave_riff_chunk_t {
     int32_t chunk_id;
@@ -42,7 +36,7 @@ typedef struct wave_fmt_chunk_t {
 typedef struct wave_data_chunk_t {
     int32_t subchunk_id;
     int32_t subchunk_size;
-    int8_t *data;
+    cint8_t *data;
 } wave_data_chunk_t;
 
 typedef struct wave_t {
@@ -173,7 +167,7 @@ wave_t wave_open(const char *filepath)
         exit(-1);
     }
 
-    data_chunk.data = (int8_t *) malloc(sizeof(data_chunk.data) * data_chunk.subchunk_size);
+    data_chunk.data = (cint8_t *) malloc(sizeof(data_chunk.data) * data_chunk.subchunk_size);
     fread(data_chunk.data, data_chunk.subchunk_size, 1, file);
     
     fclose(file);
