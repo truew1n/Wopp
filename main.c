@@ -17,12 +17,13 @@ LRESULT CALLBACK WndProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
 void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
 DWORD WINAPI SongThread(LPVOID lpParam);
 
-uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
+int64_t map(int64_t x, int64_t in_min, int64_t in_max, int64_t out_min, int64_t out_max);
 
 typedef uint32_t color_t;
 void gc_putpixel(void *memory, int32_t x, int32_t y, color_t color);
 void gc_fill_screen(void *memory, color_t color);
 void gc_fill_rectangle(void *memory, int32_t x, int32_t y, int32_t width, int32_t height, color_t color);
+void gc_fill_circle(void *memory, int32_t x, int32_t y, int32_t radius, color_t color);
 
 typedef enum state_t {
     NONE,
@@ -33,15 +34,12 @@ typedef enum state_t {
 } state_t;
 
 typedef struct song_data_t {
-    char filepath[MAX_PATH];
+    wave_t wave_file;
     state_t song_state;
 } song_data_t;
 
 HANDLE hsong_mutex;
 HANDLE hwave_mutex;
-song_data_t song_data = {0, NONE};
-HANDLE hsong_thread = {0};
-DWORD song_thread_id = 0;
 
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdshow)
@@ -55,7 +53,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
 
     if(!RegisterClassW(&wc)) return -1;
     
-    int32_t Width = 800;
+    int32_t Width = 1600;
     int32_t Height = 800;
 
     RECT window_rect = {0};
@@ -67,7 +65,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
     AdjustWindowRect(&window_rect, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0);
     HWND window = CreateWindowW(
         wc.lpszClassName,
-        L"Wopp Audio Player",
+        L"Wopp - Wave Audio Player",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
         CW_USEDEFAULT, CW_USEDEFAULT,
         window_rect.right - window_rect.left,
@@ -120,15 +118,32 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
         exit(-1);
     }
 
+    char filepath[MAX_PATH];
+    song_data_t song_data = {0, NONE};
+    song_data_t local_song_data = {0, NONE};
+    HANDLE hsong_thread = {0};
+    DWORD song_thread_id = 0;
 
+    // clock_t is time passed in ms
+    clock_t clock_start = 0L;
+    clock_t delta_time = 0L;
+    clock_t visual_delta_sum = 0L;
+    clock_t time_delay = 100L;
+    clock_t time_passed = 0L;
+
+    MSG msg = {0};
     while(running) {
-        MSG msg;
+        clock_start = clock();
+        visual_delta_sum += delta_time;
+
         while(PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
             switch(msg.message) {
                 case WM_DROPFILES: {
                     WaitForSingleObject(hsong_mutex, INFINITE);
                     if(song_data.song_state == PLAYING) {
                         song_data.song_state = FINISHED;
+                        local_song_data.song_state = FINISHED;
+                        free(local_song_data.wave_file.data_chunk.data);
                     }
                     ReleaseMutex(hsong_mutex);
                     WaitForSingleObject(hwave_mutex, INFINITE);
@@ -136,9 +151,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     UINT num_files = DragQueryFileA(hdrop, 0xFFFFFFFF, NULL, 0);
                     if(num_files == 1) {
                         WaitForSingleObject(hsong_mutex, INFINITE);
-                        DragQueryFileA(hdrop, 0, song_data.filepath, sizeof(song_data.filepath));
+                        DragQueryFileA(hdrop, 0, filepath, sizeof(filepath));
                         
+                        song_data.wave_file = wave_open(filepath);
+                        local_song_data.wave_file = wave_open(filepath);
+                        local_song_data.song_state = PLAYING;
                         song_data.song_state = NONE;
+
                         hsong_thread = CreateThread(NULL, 0, SongThread, &song_data, 0, &song_thread_id);
                         ReleaseMutex(hsong_mutex);
                     }
@@ -149,6 +168,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     WaitForSingleObject(hsong_mutex, INFINITE);
                     if(song_data.song_state == PLAYING) {
                         song_data.song_state = FINISHED;
+                        local_song_data.song_state = FINISHED;
+                        free(local_song_data.wave_file.data_chunk.data);
                     }
                     ReleaseMutex(hsong_mutex);
                     running = 0;
@@ -159,6 +180,23 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
             DispatchMessageW(&msg);
         }
 
+        if(visual_delta_sum >= time_delay && local_song_data.song_state == PLAYING) {
+            gc_fill_screen(memory, 0xFF000000);
+            cint8_t *data = local_song_data.wave_file.data_chunk.data;
+            uint32_t sample_size = local_song_data.wave_file.fmt_chunk.sample_rate / (CLOCKS_PER_SEC / time_delay);
+            uint32_t begin = sample_size * (time_passed / time_delay);
+            uint32_t end = begin + sample_size;
+            for(uint32_t i = begin; i < end; i += 2) {
+                uint16_t value = (data[i] << 8) + data[i + 1];
+                int32_t mapped_width = map(i, begin, end, 0, BitmapWidth);
+                int32_t mapped_height = map(value, 0, 65535, -(BitmapHeight >> 4), (BitmapHeight >> 4));
+                gc_fill_rectangle(memory, mapped_width, BitmapHeight >> 1, (BitmapWidth / sample_size) + 1, -mapped_height, 0xFFFF00FF);
+            }
+            time_passed += time_delay;
+            visual_delta_sum = 0L;
+        }
+
+
         StretchDIBits(
             hdc, 0, 0,
             BitmapWidth, BitmapHeight,
@@ -168,6 +206,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
             DIB_RGB_COLORS,
             SRCCOPY
         );
+        delta_time = (clock() - clock_start);
     }
 
     CloseHandle(hsong_mutex);
@@ -204,8 +243,8 @@ DWORD WINAPI SongThread(LPVOID lpParam)
 {
     WaitForSingleObject(hwave_mutex, INFINITE);
     WaitForSingleObject(hsong_mutex, INFINITE);
-    song_data_t *tsong_data = (song_data_t *) lpParam;
-    wave_t wave_file = wave_open(tsong_data->filepath);
+    song_data_t *thread_song_data = (song_data_t *) lpParam;
+    wave_t wave_file = thread_song_data->wave_file;
 
     WAVEFORMATEX wfx = {0};
     wfx.nSamplesPerSec = wave_file.fmt_chunk.sample_rate;
@@ -217,7 +256,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
     wfx.cbSize = 0;
 
     HWAVEOUT hwave_out = NULL;
-    MMRESULT result = waveOutOpen(&hwave_out, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) tsong_data->song_state, CALLBACK_FUNCTION);
+    MMRESULT result = waveOutOpen(&hwave_out, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) thread_song_data->song_state, CALLBACK_FUNCTION);
     if(result != MMSYSERR_NOERROR) {
         fprintf(stderr, "ERROR: Cannot open waveOut device!\n");
         free(wave_file.data_chunk.data);
@@ -248,29 +287,28 @@ DWORD WINAPI SongThread(LPVOID lpParam)
         exit(-1);
     }
 
-
     state_t local_state = PLAYING;
-    tsong_data->song_state = PLAYING;
+    thread_song_data->song_state = PLAYING;
     ReleaseMutex(hsong_mutex);
     while(TRUE) {
         WaitForSingleObject(hsong_mutex, INFINITE);
-        if(tsong_data->song_state == FINISHED) {
+        if(thread_song_data->song_state == FINISHED) {
             ReleaseMutex(hsong_mutex);
             break;
         }
-        if(tsong_data->song_state != local_state) {
-            if(tsong_data->song_state == PAUSED) {
-                tsong_data->song_state = PAUSED;
-            } else if(tsong_data->song_state == UNPAUSED) {
-                tsong_data->song_state = PLAYING;
+        if(thread_song_data->song_state != local_state) {
+            if(thread_song_data->song_state == PAUSED) {
+                thread_song_data->song_state = PAUSED;
+            } else if(thread_song_data->song_state == UNPAUSED) {
+                thread_song_data->song_state = PLAYING;
             }
         }
-        local_state = tsong_data->song_state;
+        local_state = thread_song_data->song_state;
 
         ReleaseMutex(hsong_mutex);
     }
     WaitForSingleObject(hsong_mutex, INFINITE);
-    tsong_data->song_state = FINISHED;
+    thread_song_data->song_state = FINISHED;
     ReleaseMutex(hsong_mutex);
 
     free(wave_file.data_chunk.data);
@@ -283,7 +321,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
     return 0;
 }
 
-uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
+int64_t map(int64_t x, int64_t in_min, int64_t in_max, int64_t out_min, int64_t out_max)
 {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -315,6 +353,17 @@ void gc_fill_rectangle(void *memory, int32_t x, int32_t y, int32_t width, int32_
     for(int32_t j = y0; j < y1; ++j) {
         for(int32_t i = x0; i < x1; ++i) {
             gc_putpixel(memory, i, j, color);
+        }
+    }
+}
+
+void gc_fill_circle(void *memory, int32_t x, int32_t y, int32_t radius, color_t color)
+{
+    for(int32_t j = -radius; j < radius; ++j) {
+        for(int32_t i = -radius; i < radius; ++i) {
+            if((j * j + i * i) <= radius * radius) {
+                gc_putpixel(memory, x + i, y + j, color);
+            }
         }
     }
 }
