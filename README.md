@@ -5,5 +5,5 @@ Wave Audio Player
 
 ## For Windows
 ```
-gcc -o main main.c -lwinmm -lkernel32 -lgdi32 -mwindows
+gcc -o Wopp main.c -lwinmm -lkernel32 -lgdi32 -mwindows
 ```
