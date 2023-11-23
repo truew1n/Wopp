@@ -3,6 +3,7 @@
 #include <float.h>
 
 #include "wave.h"
+#include "bmp.h"
 
 
 int32_t ClientWidth;
@@ -23,7 +24,7 @@ typedef uint32_t color_t;
 void gc_putpixel(void *memory, int32_t x, int32_t y, color_t color);
 void gc_fill_screen(void *memory, color_t color);
 void gc_fill_rectangle(void *memory, int32_t x, int32_t y, int32_t width, int32_t height, color_t color);
-void gc_fill_circle(void *memory, int32_t x, int32_t y, int32_t radius, color_t color);
+void gc_draw_font(void *memory, int32_t x, int32_t y, Image *image, int32_t index, int32_t size);
 
 typedef enum state_t {
     NONE,
@@ -40,7 +41,10 @@ typedef struct song_data_t {
 
 HANDLE hsong_mutex;
 HANDLE hwave_mutex;
+HANDLE hfont_mutex;
 
+DWORD time_start = 0L;
+DWORD total_time = 0L;
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdshow)
 {
@@ -53,8 +57,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
 
     if(!RegisterClassW(&wc)) return -1;
     
-    int32_t Width = 1600;
-    int32_t Height = 800;
+    int32_t Width = 800;
+    int32_t Height = 400;
 
     RECT window_rect = {0};
     window_rect.right = Width;
@@ -113,14 +117,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
         NULL
     );
 
-    if(!(hsong_mutex && hwave_mutex)) {
+    hfont_mutex = CreateMutexA(
+        NULL,
+        FALSE,
+        NULL
+    );
+
+    if(!(hsong_mutex && hwave_mutex && hfont_mutex)) {
         fprintf(stderr, "ERROR: Failed to create unnamed mutexes!\n");
         exit(-1);
     }
 
     char filepath[MAX_PATH];
     song_data_t song_data = {0, NONE};
-    song_data_t local_song_data = {0, NONE};
     HANDLE hsong_thread = {0};
     DWORD song_thread_id = 0;
 
@@ -128,8 +137,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
     clock_t clock_start = 0L;
     clock_t delta_time = 0L;
     clock_t visual_delta_sum = 0L;
-    clock_t time_delay = 100L;
-    clock_t time_passed = 0L;
+    clock_t time_delay = 10L;
+
+    Image bitmap_font = openImage("Font.bmp");
+    int32_t font_size = 12;
+
+    StretchDIBits(
+        hdc, 0, 0,
+        BitmapWidth, BitmapHeight,
+        0, 0,
+        BitmapWidth, BitmapHeight,
+        memory, &bitmap_info,
+        DIB_RGB_COLORS,
+        SRCCOPY
+    );
 
     MSG msg = {0};
     while(running) {
@@ -142,8 +163,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     WaitForSingleObject(hsong_mutex, INFINITE);
                     if(song_data.song_state == PLAYING) {
                         song_data.song_state = FINISHED;
-                        local_song_data.song_state = FINISHED;
-                        free(local_song_data.wave_file.data_chunk.data);
                     }
                     ReleaseMutex(hsong_mutex);
                     WaitForSingleObject(hwave_mutex, INFINITE);
@@ -154,8 +173,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                         DragQueryFileA(hdrop, 0, filepath, sizeof(filepath));
                         
                         song_data.wave_file = wave_open(filepath);
-                        local_song_data.wave_file = wave_open(filepath);
-                        local_song_data.song_state = PLAYING;
+                        total_time = song_data.wave_file.data_chunk.subchunk_size / song_data.wave_file.fmt_chunk.sample_rate / song_data.wave_file.fmt_chunk.num_channels;
+                        total_time /= (song_data.wave_file.fmt_chunk.bits_per_sample / 8);
                         song_data.song_state = NONE;
 
                         hsong_thread = CreateThread(NULL, 0, SongThread, &song_data, 0, &song_thread_id);
@@ -168,8 +187,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                     WaitForSingleObject(hsong_mutex, INFINITE);
                     if(song_data.song_state == PLAYING) {
                         song_data.song_state = FINISHED;
-                        local_song_data.song_state = FINISHED;
-                        free(local_song_data.wave_file.data_chunk.data);
                     }
                     ReleaseMutex(hsong_mutex);
                     running = 0;
@@ -180,37 +197,42 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
             DispatchMessageW(&msg);
         }
 
-        if(visual_delta_sum >= time_delay && local_song_data.song_state == PLAYING) {
-            gc_fill_screen(memory, 0xFF000000);
-            cint8_t *data = local_song_data.wave_file.data_chunk.data;
-            uint32_t sample_size = local_song_data.wave_file.fmt_chunk.sample_rate / (CLOCKS_PER_SEC / time_delay);
-            uint32_t begin = sample_size * (time_passed / time_delay);
-            uint32_t end = begin + sample_size;
-            for(uint32_t i = begin; i < end; i += 2) {
-                uint16_t value = (data[i] << 8) + data[i + 1];
-                int32_t mapped_width = map(i, begin, end, 0, BitmapWidth);
-                int32_t mapped_height = map(value, 0, 65535, -(BitmapHeight >> 4), (BitmapHeight >> 4));
-                gc_fill_rectangle(memory, mapped_width, BitmapHeight >> 1, (BitmapWidth / sample_size) + 1, -mapped_height, 0xFFFF00FF);
-            }
-            time_passed += time_delay;
+        WaitForSingleObject(hsong_mutex, INFINITE);
+        if(visual_delta_sum >= time_delay && (song_data.song_state == PLAYING || song_data.song_state == NONE)) {
+            WaitForSingleObject(hfont_mutex, INFINITE);
+            DWORD time_passed = (timeGetTime() - time_start) / 1000;
+            gc_fill_screen(memory, 0xFFFFFFFF);
+            gc_draw_font(memory, (BitmapWidth >> 1) - 27 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (time_passed / 60) % 10, font_size);
+            gc_draw_font(memory, (BitmapWidth >> 1) - 21 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, 10, font_size);
+            gc_draw_font(memory, (BitmapWidth >> 1) - 15 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (time_passed / 10) % 6, font_size);
+            gc_draw_font(memory, (BitmapWidth >> 1) - 9 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, time_passed % 10, font_size);
+
+            gc_draw_font(memory, (BitmapWidth >> 1) -2 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, 11, font_size);
+            
+            gc_draw_font(memory, (BitmapWidth >> 1) + 5 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (total_time / 60) % 10, font_size);
+            gc_draw_font(memory, (BitmapWidth >> 1) + 11 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, 10, font_size);
+            gc_draw_font(memory, (BitmapWidth >> 1) + 17 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (total_time / 10) % 6, font_size);
+            gc_draw_font(memory, (BitmapWidth >> 1) + 23 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, total_time % 10, font_size);
+            ReleaseMutex(hfont_mutex);
+
             visual_delta_sum = 0L;
+            StretchDIBits(
+                hdc, 0, 0,
+                BitmapWidth, BitmapHeight,
+                0, 0,
+                BitmapWidth, BitmapHeight,
+                memory, &bitmap_info,
+                DIB_RGB_COLORS,
+                SRCCOPY
+            );
         }
-
-
-        StretchDIBits(
-            hdc, 0, 0,
-            BitmapWidth, BitmapHeight,
-            0, 0,
-            BitmapWidth, BitmapHeight,
-            memory, &bitmap_info,
-            DIB_RGB_COLORS,
-            SRCCOPY
-        );
+        ReleaseMutex(hsong_mutex);
         delta_time = (clock() - clock_start);
     }
 
     CloseHandle(hsong_mutex);
     CloseHandle(hwave_mutex);
+    CloseHandle(hfont_mutex);
     return 0;
 }
 
@@ -232,9 +254,11 @@ void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance, DWORD_P
 {
     if (uMsg == WOM_DONE) {
         WaitForSingleObject(hsong_mutex, INFINITE);
+        WaitForSingleObject(hfont_mutex, INFINITE);
         state_t *state = ((state_t *) dwInstance);
         if(state != NULL)
             *state = FINISHED;
+        ReleaseMutex(hfont_mutex);
         ReleaseMutex(hsong_mutex);
     }
 }
@@ -256,7 +280,7 @@ DWORD WINAPI SongThread(LPVOID lpParam)
     wfx.cbSize = 0;
 
     HWAVEOUT hwave_out = NULL;
-    MMRESULT result = waveOutOpen(&hwave_out, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) thread_song_data->song_state, CALLBACK_FUNCTION);
+    MMRESULT result = waveOutOpen(&hwave_out, WAVE_MAPPER, &wfx, (DWORD_PTR) waveOutProc, (DWORD_PTR) &thread_song_data->song_state, CALLBACK_FUNCTION);
     if(result != MMSYSERR_NOERROR) {
         fprintf(stderr, "ERROR: Cannot open waveOut device!\n");
         free(wave_file.data_chunk.data);
@@ -286,6 +310,9 @@ DWORD WINAPI SongThread(LPVOID lpParam)
         free(wave_file.data_chunk.data);
         exit(-1);
     }
+    WaitForSingleObject(hfont_mutex, INFINITE);
+    time_start = timeGetTime();
+    ReleaseMutex(hfont_mutex);
 
     state_t local_state = PLAYING;
     thread_song_data->song_state = PLAYING;
@@ -303,16 +330,17 @@ DWORD WINAPI SongThread(LPVOID lpParam)
                 thread_song_data->song_state = PLAYING;
             }
         }
-        local_state = thread_song_data->song_state;
 
+        local_state = thread_song_data->song_state;
         ReleaseMutex(hsong_mutex);
     }
+
     WaitForSingleObject(hsong_mutex, INFINITE);
     thread_song_data->song_state = FINISHED;
     ReleaseMutex(hsong_mutex);
 
     free(wave_file.data_chunk.data);
-
+    
     waveOutReset(hwave_out);
     waveOutUnprepareHeader(hwave_out, &header, sizeof(WAVEHDR));
     waveOutClose(hwave_out);
@@ -357,13 +385,17 @@ void gc_fill_rectangle(void *memory, int32_t x, int32_t y, int32_t width, int32_
     }
 }
 
-void gc_fill_circle(void *memory, int32_t x, int32_t y, int32_t radius, color_t color)
+void gc_draw_font(void *memory, int32_t x, int32_t y, Image *image, int32_t index, int32_t size)
 {
-    for(int32_t j = -radius; j < radius; ++j) {
-        for(int32_t i = -radius; i < radius; ++i) {
-            if((j * j + i * i) <= radius * radius) {
-                gc_putpixel(memory, x + i, y + j, color);
+    int32_t begin = index * 5;
+    int32_t end = begin + 5;
+    for(int32_t j = 0; j < image->height; ++j) {
+        for(int32_t i = begin; i < end; ++i) {
+            color_t color = *((color_t *) image->memory + (i + j * image->width));
+            if(((color >> 24) & 0xFF) == 0xFF) {
+                gc_fill_rectangle(memory, x + ((i - begin) * size), y + (j * size), size, size, color);
             }
+                
         }
     }
 }
