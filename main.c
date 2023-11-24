@@ -152,6 +152,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
         SRCCOPY
     );
 
+    int32_t half_width = BitmapWidth >> 1;
+    int32_t half_height = BitmapHeight >> 1;
+    int32_t font_height_align = ((bitmap_font.height * font_size) >> 1);
+    int32_t font_y_pos = half_height - font_height_align;
+
     MSG msg = {0};
     while(running) {
         clock_start = clock();
@@ -197,22 +202,33 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
             DispatchMessageW(&msg);
         }
 
-        WaitForSingleObject(hsong_mutex, INFINITE);
-        if(visual_delta_sum >= time_delay && (song_data.song_state == PLAYING || song_data.song_state == NONE)) {
+        
+        if(visual_delta_sum >= time_delay) {
+            WaitForSingleObject(hsong_mutex, INFINITE);
             WaitForSingleObject(hfont_mutex, INFINITE);
-            DWORD time_passed = (timeGetTime() - time_start) / 1000;
+            DWORD time_passed = 0L;
+            switch(song_data.song_state) {
+                case PLAYING: {
+                    time_passed = (timeGetTime() - time_start) / 1000;
+                    break;
+                }
+                case FINISHED: {
+                    total_time = 0L;
+                    break;
+                }
+            }
             gc_fill_screen(memory, 0xFFFFFFFF);
-            gc_draw_font(memory, (BitmapWidth >> 1) - 27 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (time_passed / 60) % 10, font_size);
-            gc_draw_font(memory, (BitmapWidth >> 1) - 21 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, 10, font_size);
-            gc_draw_font(memory, (BitmapWidth >> 1) - 15 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (time_passed / 10) % 6, font_size);
-            gc_draw_font(memory, (BitmapWidth >> 1) - 9 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, time_passed % 10, font_size);
+            gc_draw_font(memory, half_width - 27 * font_size, font_y_pos, &bitmap_font, (time_passed / 60) % 10, font_size);
+            gc_draw_font(memory, half_width - 21 * font_size, font_y_pos, &bitmap_font, 10, font_size);
+            gc_draw_font(memory, half_width - 15 * font_size, font_y_pos, &bitmap_font, (time_passed / 10) % 6, font_size);
+            gc_draw_font(memory, half_width - 9 * font_size, font_y_pos, &bitmap_font, time_passed % 10, font_size);
 
-            gc_draw_font(memory, (BitmapWidth >> 1) -2 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, 11, font_size);
+            gc_draw_font(memory, half_width -2 * font_size, font_y_pos, &bitmap_font, 11, font_size);
             
-            gc_draw_font(memory, (BitmapWidth >> 1) + 5 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (total_time / 60) % 10, font_size);
-            gc_draw_font(memory, (BitmapWidth >> 1) + 11 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, 10, font_size);
-            gc_draw_font(memory, (BitmapWidth >> 1) + 17 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, (total_time / 10) % 6, font_size);
-            gc_draw_font(memory, (BitmapWidth >> 1) + 23 * font_size, (BitmapHeight >> 1) - ((bitmap_font.height * font_size) >> 1), &bitmap_font, total_time % 10, font_size);
+            gc_draw_font(memory, half_width + 5 * font_size, font_y_pos, &bitmap_font, (total_time / 60) % 10, font_size);
+            gc_draw_font(memory, half_width + 11 * font_size, font_y_pos, &bitmap_font, 10, font_size);
+            gc_draw_font(memory, half_width + 17 * font_size, font_y_pos, &bitmap_font, (total_time / 10) % 6, font_size);
+            gc_draw_font(memory, half_width + 23 * font_size, font_y_pos, &bitmap_font, total_time % 10, font_size);
             ReleaseMutex(hfont_mutex);
 
             visual_delta_sum = 0L;
@@ -225,8 +241,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
                 DIB_RGB_COLORS,
                 SRCCOPY
             );
+            ReleaseMutex(hsong_mutex);
         }
-        ReleaseMutex(hsong_mutex);
         delta_time = (clock() - clock_start);
     }
 
