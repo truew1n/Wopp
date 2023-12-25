@@ -1,5 +1,5 @@
 # Wopp
-Wave Audio Player
+Simple Wave Audio Player
 
 # Build
 
@@ -7,6 +7,11 @@ Wave Audio Player
 ```
 gcc -o Wopp main.c -lwinmm -lkernel32 -lgdi32 -mwindows
 ```
+# Usage
+
+Just drag & drop files on the window and music will start playing.
+Any non .wav file will cause program to crash.
+
 # Showcase
 
 ## #1
