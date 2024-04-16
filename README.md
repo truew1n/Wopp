@@ -1,18 +1,19 @@
 # Wopp
-Simple Wave Audio Player
+New Simple Wave Audio Player - Test Version
 
 # Build
 
 ## For Windows
 ```
-gcc -o Wopp main.c -lwinmm -lkernel32 -lgdi32 -mwindows
+@echo off
+
+if not exist Debug ( mkdir Debug )
+
+set "AudioControllerClass=AudioController.cpp"
+
+set "AllClasses=%AudioControllerClass%"
+
+nvcc -o ./Debug/Main Main.cu %AllClasses% -lcudart -lgdi32 -luser32 -lkernel32 -lwinmm
+
+"Debug/Main.exe"
 ```
-# Usage
-
-Just drag & drop files on the window and music will start playing.
-Any non .wav file will cause program to crash.
-
-# Showcase
-
-## #1
-![image](https://github.com/truew1n/Wopp/assets/48839784/9c017210-5716-4c0c-b5ea-d7c71569ebe4)
