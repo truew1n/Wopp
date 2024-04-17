@@ -1,4 +1,2 @@
 *.vscode
-Assets/Audio/*
-!Assets/
-!Assets/Audio/
+Assets/Audio/*.wav
