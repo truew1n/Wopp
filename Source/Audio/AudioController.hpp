@@ -55,13 +55,16 @@ private:
     DWORD StartTime;
     DWORD CurrentTime;
 
-    // Mutexes
+    // Mutexes & Events
     HANDLE HBLoopMutex;
     HANDLE HBQueueLoopMutex;
     HANDLE HBCQueueLoopMutex; // Mutex for QueueLoopCreated bool state
 
+    HANDLE HAudioStreamMutex;
     HANDLE HAudioStreamStateMutex;
     HANDLE HBCAudioStreamMutex; // Mutex for AudioStreamCreated bool state
+    
+    HANDLE HAudioFinishedEvent;
 
     // Threads
     HANDLE HAudioStream;
@@ -74,17 +77,20 @@ private:
 
     bool BAudioStreamCreated;
     EAudioStreamState AudioStreamState;
-    // ESongQueueSkipOption SongQueueSkipOption;
 
 private:
     static void SetupWaveFormatX(WAVEFORMATEX *WaveFormatX, wave_t *CurrentSong);
     static void SetupWaveHeader(WAVEHDR *WaveHeader, wave_t *CurrentSong);
+
+    static void CALLBACK AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1);
     
     static DWORD WINAPI AudioStream(LPVOID LParam);
     static DWORD WINAPI QueueLoop(LPVOID LParam);
 
 public:
     AudioController();
+
+    void Free();
     ~AudioController();
 
     void Load();

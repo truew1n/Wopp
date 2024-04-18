@@ -103,24 +103,36 @@ void AudioController::SetupWaveHeader(WAVEHDR *WaveHeader, wave_t *CurrentSong)
     WaveHeader->dwLoops = 0;
 }
 
+void CALLBACK AudioController::AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1)
+{
+    switch(UMsg) {
+        case WOM_DONE: {
+            AudioController *Controller = (AudioController *) DwInstance;
+            SetEvent(Controller->HAudioFinishedEvent);
+        }
+    }
+}
+
 DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
 {
     AudioController *Controller = (AudioController *) LParam;
     
     if(!Controller->CurrentSong.is_loaded) return 2;
 
+    WaitForSingleObject(Controller->HAudioStreamMutex, INFINITE);
+
     SetupWaveFormatX(&Controller->WaveFormatX, &Controller->CurrentSong);
 
+    Controller->HAudioFinishedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     Controller->HWaveOut = NULL;
+
     MMRESULT ReuseResult = MMSYSERR_NOERROR;
     ReuseResult = waveOutOpen(
         &Controller->HWaveOut, WAVE_MAPPER, &Controller->WaveFormatX,
-        NULL,
+        (DWORD_PTR) &AudioController::AudioStreamCallback,
         (DWORD_PTR) Controller,
         CALLBACK_FUNCTION
-    );
-    
-    if(ReuseResult != MMSYSERR_NOERROR) {
+    ); if(ReuseResult != MMSYSERR_NOERROR) {
         std::cerr << "AUDIO_STREAM: WaveOut device could not be opened!\n";
         return 2;
     }
@@ -132,9 +144,7 @@ DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
         Controller->HWaveOut,
         &Controller->WaveHeader,
         sizeof(WAVEHDR)
-    );
-    
-    if(ReuseResult != MMSYSERR_NOERROR) {
+    ); if(ReuseResult != MMSYSERR_NOERROR) {
         std::cerr << "AUDIO_STREAM: Preparation of WaveHeader failed!\n";
         waveOutClose(Controller->HWaveOut);
         return 2;
@@ -145,9 +155,7 @@ DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
         Controller->HWaveOut,
         &Controller->WaveHeader,
         sizeof(WAVEHDR)
-    );
-    
-    if(ReuseResult != MMSYSERR_NOERROR) {
+    ); if(ReuseResult != MMSYSERR_NOERROR) {
         std::cerr << "AUDIO_STREAM: Writing to WaveOut device failed!\n";
         waveOutUnprepareHeader(Controller->HWaveOut, &Controller->WaveHeader, sizeof(WAVEHDR));
         waveOutClose(Controller->HWaveOut);
@@ -158,14 +166,24 @@ DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
     Controller->CurrentTime = Controller->StartTime;
     SetAudioStreamState(Controller, EAudioStreamState::PLAYING);
     
+    /* It was usefull to know, but it eats to much resources
     while (
         waveOutUnprepareHeader(Controller->HWaveOut, &Controller->WaveHeader, sizeof(WAVEHDR)) == WAVERR_STILLPLAYING ||
         GetAudioStreamState(Controller) == EAudioStreamState::STOPPED
     );
+    */
+
+    WaitForSingleObject(Controller->HAudioFinishedEvent, INFINITE);
+    CloseHandle(Controller->HAudioFinishedEvent);
     
+    // waveOutUnprepareHeader(Controller->HWaveOut, &Controller->WaveHeader, sizeof(WAVEHDR));
     waveOutClose(Controller->HWaveOut);
+    
     SetAudioStreamState(Controller, EAudioStreamState::IDLE);
     SetBAudioStreamCreated(Controller, false);
+
+    ReleaseMutex(Controller->HAudioStreamMutex);
+    
     return 100;
 }
 
@@ -202,6 +220,12 @@ AudioController::AudioController()
         NULL
     );
 
+    HAudioStreamMutex = CreateMutexA(
+        NULL,
+        FALSE,
+        NULL
+    );
+
     HAudioStreamStateMutex = CreateMutexA(
         NULL,
         FALSE,
@@ -227,15 +251,24 @@ AudioController::AudioController()
     AudioStreamState = EAudioStreamState::IDLE;
 }
 
-AudioController::~AudioController()
+void AudioController::Free()
 {
+    CloseHandle(HQueueLoop);
     CloseHandle(HBLoopMutex);
     CloseHandle(HBQueueLoopMutex);
     CloseHandle(HBCQueueLoopMutex);
 
     CloseHandle(HAudioStream);
+    CloseHandle(HAudioStreamMutex);
     CloseHandle(HAudioStreamStateMutex);
     CloseHandle(HBCAudioStreamMutex);
+
+    free(CurrentSong.data_chunk.data);
+}
+
+AudioController::~AudioController()
+{
+    Free();
 }
 
 void AudioController::Load()
@@ -262,6 +295,7 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
     SetBQueueLoopCreated(Controller, true);
     
     do {
+        WaitForSingleObject(Controller->HAudioStreamMutex, INFINITE);
         if(!GetBAudioStreamCreated(Controller)) {
             if(GetBQueueLoop(Controller)) {
                 Controller->Load();
@@ -273,7 +307,9 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
             }
             Controller->HAudioStream = CreateThread(NULL, 0, &AudioController::AudioStream, (LPVOID) Controller, 0, NULL);
             SetBAudioStreamCreated(Controller, true);
+            
         }
+        ReleaseMutex(Controller->HAudioStreamMutex);
     } while(GetBLoop(Controller) || GetBQueueLoop(Controller));
     SetBQueueLoopCreated(Controller, false);
     return 0;
@@ -294,6 +330,7 @@ void AudioController::Stop()
         case EAudioStreamState::PAUSED: __fallthrough;
         case EAudioStreamState::PLAYING: {
             SetAudioStreamState(this, EAudioStreamState::STOPPED);
+            SetEvent(HAudioFinishedEvent);
             break;
         }
     }
