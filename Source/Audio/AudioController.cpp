@@ -258,7 +258,6 @@ void AudioController::Free()
     CloseHandle(HBQueueLoopMutex);
     CloseHandle(HBCQueueLoopMutex);
 
-    CloseHandle(HAudioStream);
     CloseHandle(HAudioStreamMutex);
     CloseHandle(HAudioStreamStateMutex);
     CloseHandle(HBCAudioStreamMutex);
