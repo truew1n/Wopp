@@ -1,4 +1,3 @@
 *.vscode
-Assets/Audio/
+Assets/Audio/*
 !Assets/
-!Assets
