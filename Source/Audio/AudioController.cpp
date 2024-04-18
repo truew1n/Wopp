@@ -253,6 +253,9 @@ AudioController::AudioController()
 
 void AudioController::Free()
 {
+    BInterrupt = true;
+    Stop();
+
     CloseHandle(HQueueLoop);
     CloseHandle(HBLoopMutex);
     CloseHandle(HBQueueLoopMutex);
@@ -309,7 +312,7 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
             
         }
         ReleaseMutex(Controller->HAudioStreamMutex);
-    } while(GetBLoop(Controller) || GetBQueueLoop(Controller));
+    } while((GetBLoop(Controller) || GetBQueueLoop(Controller)) && !Controller->BInterrupt);
     SetBQueueLoopCreated(Controller, false);
     return 0;
 }

@@ -74,6 +74,7 @@ private:
     bool BLoop;
     bool BQueueLoop;
     bool BQueueLoopCreated;
+    bool BInterrupt;
 
     bool BAudioStreamCreated;
     EAudioStreamState AudioStreamState;
