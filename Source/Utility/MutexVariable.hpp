@@ -23,12 +23,6 @@ public:
         ValueMutex.Free();
     }
 
-    // Destructor caused problems, figure out why
-    // ~MutexVariable()
-    // {
-
-    // }
-
     T Get()
     {
         T ReturnValue = T();
