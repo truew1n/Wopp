@@ -27,7 +27,7 @@ void CALLBACK AudioController::AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg,
     switch(UMsg) {
         case WOM_DONE: {
             AudioController *Controller = (AudioController *) DwInstance;
-            SetEvent(Controller->HAudioFinishedEvent);
+            Controller->AudioFinishedEvent.Send();
         }
     }
 }
@@ -38,11 +38,11 @@ DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
     
     if(!Controller->CurrentSong.is_loaded) return 2;
 
-    WaitForSingleObject(Controller->HAudioStreamMutex, INFINITE);
+    Controller->AudioStreamMutex.Lock();
 
     SetupWaveFormatX(&Controller->WaveFormatX, &Controller->CurrentSong);
 
-    Controller->HAudioFinishedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    Controller->AudioFinishedEvent = Event();
     Controller->HWaveOut = NULL;
 
     MMRESULT ReuseResult = MMSYSERR_NOERROR;
@@ -85,23 +85,17 @@ DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
     Controller->CurrentTime = Controller->StartTime;
     Controller->AudioStreamState.Set(EAudioStreamState::PLAYING);
     
-    /* It was usefull to know, but it eats to much resources
-    while (
-        waveOutUnprepareHeader(Controller->HWaveOut, &Controller->WaveHeader, sizeof(WAVEHDR)) == WAVERR_STILLPLAYING ||
-        GetAudioStreamState(Controller) == EAudioStreamState::STOPPED
-    );
-    */
 
-    WaitForSingleObject(Controller->HAudioFinishedEvent, INFINITE);
-    CloseHandle(Controller->HAudioFinishedEvent);
+    // Waiting for playback to finish
+    Controller->AudioFinishedEvent.Wait();
+    Controller->AudioFinishedEvent.Free();
     
-    // waveOutUnprepareHeader(Controller->HWaveOut, &Controller->WaveHeader, sizeof(WAVEHDR));
     waveOutClose(Controller->HWaveOut);
     
     Controller->AudioStreamState.Set(EAudioStreamState::IDLE);
     Controller->BAudioStreamCreated.Set(false);
 
-    ReleaseMutex(Controller->HAudioStreamMutex);
+    Controller->AudioStreamMutex.Unlock();
     
     return 100;
 }
@@ -110,8 +104,7 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
 {
     AudioController *Controller = (AudioController *) LParam;
     
-    WaitForSingleObject(Controller->HQueueLoopMutex, INFINITE);
-
+    Controller->QueueLoopMutex.Lock();
     if(Controller->BAudioStreamCreated.Get()) return 0;
     if(!(Controller->BLoop.Get() || Controller->BQueueLoop.Get())) {
         Controller->Load();
@@ -119,7 +112,7 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
 
     Controller->BQueueLoopCreated.Set(true);
     do {
-        WaitForSingleObject(Controller->HAudioStreamMutex, INFINITE);
+        Controller->AudioStreamMutex.Lock();
         if(!Controller->BAudioStreamCreated.Get()) {
             if(Controller->BQueueLoop.Get()) {
                 Controller->Load();
@@ -133,23 +126,25 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
             
             Controller->BAudioStreamCreated.Set(true);
         }
-        ReleaseMutex(Controller->HAudioStreamMutex);
+        Controller->AudioStreamMutex.Unlock();
     } while((Controller->BLoop.Get() || Controller->BQueueLoop.Get()) && !Controller->BInterrupt.Get());
 
     Controller->BQueueLoopCreated.Set(false);
-    ReleaseMutex(Controller->HQueueLoopMutex);
+    Controller->QueueLoopMutex.Unlock();
     return 0;
 }
 
 AudioController::AudioController()
 {
     // Audio Details
+
     SongPathQueue = std::vector<std::wstring>();
     CurrentSongIndex = 0;
     CurrentSongPath = std::wstring();
     CurrentSong = {0};
     
     // WaveOut Stuff
+
     WaveFormatX = {0};
     HWaveOut = NULL;
     WaveHeader = {0};
@@ -157,25 +152,19 @@ AudioController::AudioController()
     DWORD StartTime = 0LU;
     DWORD CurrentTime = 0LU;
 
-    // Mutexes & Events
-    HAudioStreamMutex = CreateMutexA(
-        NULL,
-        FALSE,
-        NULL
-    );
+    // Mutex
 
-    HQueueLoopMutex = CreateMutexA(
-        NULL,
-        FALSE,
-        NULL
-    );
+    AudioStreamMutex = Mutex();
+    QueueLoopMutex = Mutex();
 
     // Threads
+
     HAudioStream = NULL;
     HQueueLoop = NULL;
     
 
     // States
+
     BLoop = MutexVariable<bool>(false);
     BQueueLoop = MutexVariable<bool>(true);
     BQueueLoopCreated = MutexVariable<bool>(false);
@@ -190,10 +179,10 @@ void AudioController::Free()
     BInterrupt.Set(true);
     Stop();
 
-    WaitForSingleObject(HQueueLoopMutex, INFINITE);
-    ReleaseMutex(HQueueLoopMutex);
-    CloseHandle(HAudioStreamMutex);
-    CloseHandle(HQueueLoopMutex);
+    QueueLoopMutex.Lock();
+    QueueLoopMutex.Unlock();
+    AudioStreamMutex.Free();
+    QueueLoopMutex.Free();
     CloseHandle(HQueueLoop);
 
     BLoop.Free();
@@ -237,7 +226,7 @@ void AudioController::Stop()
         case EAudioStreamState::PAUSED: __fallthrough;
         case EAudioStreamState::PLAYING: {
             AudioStreamState.Set(EAudioStreamState::STOPPED);
-            SetEvent(HAudioFinishedEvent);
+            AudioFinishedEvent.Send();
             break;
         }
     }

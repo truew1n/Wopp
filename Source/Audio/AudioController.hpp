@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "MutexVariable.hpp"
+#include "Event.hpp"
 #include "Wave.h"
 
 enum class ESeekDirection : uint8_t {
@@ -41,10 +42,14 @@ private:
     DWORD StartTime;
     DWORD CurrentTime;
 
-    // Mutexes & Events
-    HANDLE HAudioStreamMutex;
-    HANDLE HQueueLoopMutex;
-    HANDLE HAudioFinishedEvent;
+    // Mutexes
+    Mutex AudioStreamMutex;
+    Mutex QueueLoopMutex;
+    Event AudioFinishedEvent;
+    
+    // HANDLE HAudioStreamMutex;
+    // HANDLE HQueueLoopMutex;
+    // HANDLE HAudioFinishedEvent;
 
     // Threads
     HANDLE HAudioStream;

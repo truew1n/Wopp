@@ -1,25 +1,26 @@
 #pragma once
 
 #include <iostream>
-#include <windows.h>
+
+#include "Mutex.hpp"
 
 template<typename T>
 class MutexVariable {
 private:
     T Value;
-    HANDLE ValueMutex;
+    Mutex ValueMutex;
 public:
-    MutexVariable() : Value(T()), ValueMutex(NULL) {}
+    MutexVariable() : Value(T()), ValueMutex() {}
     
     MutexVariable(T NewValue)
     {
         Value = NewValue;
-        ValueMutex = CreateMutexA(NULL, FALSE, NULL);
+        ValueMutex = Mutex();
     }
 
     void Free()
     {
-        if(ValueMutex) CloseHandle(ValueMutex);
+        ValueMutex.Free();
     }
 
     // Destructor caused problems, figure out why
@@ -31,16 +32,16 @@ public:
     T Get()
     {
         T ReturnValue = T();
-        WaitForSingleObject(ValueMutex, INFINITE);
+        ValueMutex.Lock();
         ReturnValue = Value;
-        ReleaseMutex(ValueMutex);
+        ValueMutex.Unlock();
         return ReturnValue;
     }
     
     void Set(T NewValue)
     {
-        WaitForSingleObject(ValueMutex, INFINITE);
+        ValueMutex.Lock();
         Value = NewValue;
-        ReleaseMutex(ValueMutex);
+        ValueMutex.Unlock();
     }
 };

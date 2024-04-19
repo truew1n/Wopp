@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <Windows.h>
 
 #define RIFF_CHUNK_ID 0x52494646
 #define WAVE_CHUNK_ID 0x57415645
