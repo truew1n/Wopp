@@ -26,21 +26,6 @@ enum class ESongQueueSkipOption : uint8_t {
 };
 
 class AudioController {
-public:
-    static bool GetBLoop(AudioController *Caller);
-    static void SetBLoop(AudioController *Caller, bool NewValue);
-
-    static bool GetBQueueLoop(AudioController *Caller);
-    static void SetBQueueLoop(AudioController *Caller, bool NewValue);
-
-    static bool GetBQueueLoopCreated(AudioController *Caller);
-    static void SetBQueueLoopCreated(AudioController *Caller, bool NewValue);
-
-    static bool GetBAudioStreamCreated(AudioController *Caller);
-    static void SetBAudioStreamCreated(AudioController *Caller, bool NewValue);
-
-    static void SetAudioStreamState(AudioController *Controller, EAudioStreamState State);
-    static EAudioStreamState GetAudioStreamState(AudioController *Controller);
 private:
     // Audio Details
     std::vector<std::wstring> SongPathQueue;
@@ -57,14 +42,8 @@ private:
     DWORD CurrentTime;
 
     // Mutexes & Events
-    HANDLE HBLoopMutex;
-    HANDLE HBQueueLoopMutex;
-    HANDLE HBCQueueLoopMutex; // Mutex for QueueLoopCreated bool state
-
     HANDLE HAudioStreamMutex;
-    HANDLE HAudioStreamStateMutex;
-    HANDLE HBCAudioStreamMutex; // Mutex for AudioStreamCreated bool state
-    
+    HANDLE HQueueLoopMutex;
     HANDLE HAudioFinishedEvent;
 
     // Threads
@@ -72,13 +51,13 @@ private:
     HANDLE HQueueLoop;
 
     // States
-    bool BLoop;
-    bool BQueueLoop;
-    bool BQueueLoopCreated;
-    bool BInterrupt;
+    MutexVariable<bool> BLoop;
+    MutexVariable<bool> BQueueLoop;
+    MutexVariable<bool> BQueueLoopCreated;
+    MutexVariable<bool> BInterrupt;
 
-    bool BAudioStreamCreated;
-    EAudioStreamState AudioStreamState;
+    MutexVariable<bool> BAudioStreamCreated;
+    MutexVariable<EAudioStreamState> AudioStreamState;
 
 private:
     static void SetupWaveFormatX(WAVEFORMATEX *WaveFormatX, wave_t *CurrentSong);
@@ -96,7 +75,7 @@ public:
     ~AudioController();
 
     void Load();
-
+    
     void Start();
     void Stop();
 

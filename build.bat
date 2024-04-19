@@ -16,11 +16,9 @@ set "DisplayComponentClass=Source\Component\DisplayComponent.cpp"
 set "ComponentClasses=%DisplayComponentClass%"
 set "ComponentIncludeDirectory=-ISource\Component"
 
-set "MutexVariableClass=Source\Utility\MutexVariable.cpp"
-set "UtilityClasses=%MutexVariableClass%"
 set "UtilityIncludeDirectory=-ISource\Utility"
 
-set "AllClasses=%AudioClasses% %WindowClasses% %ComponentClasses% %UtilityClasses%"
+set "AllClasses=%AudioClasses% %WindowClasses% %ComponentClasses%"
 
 set "IncludeDirectories=-ISource\Lib %AudioIncludeDirectory% %WindowIncludeDirectory% %ComponentIncludeDirectory% %UtilityIncludeDirectory%"
 set "MainFileDirectory=Source\Main.cu"
