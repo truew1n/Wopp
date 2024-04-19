@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <vector>
 
+#include "MutexVariable.hpp"
 #include "Wave.h"
 
 enum class ESeekDirection : uint8_t {
