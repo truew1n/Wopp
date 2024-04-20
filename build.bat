@@ -16,12 +16,12 @@ set "DisplayComponentClass=Source\Component\DisplayComponent.cpp"
 set "ComponentClasses=%DisplayComponentClass%"
 set "ComponentIncludeDirectory=-ISource\Component"
 
-set "MutexClass=Source\Utility\Mutex.cpp"
-set "EventClass=Source\Utility\Event.cpp"
-set "UtilityClasses=%MutexClass% %EventClass%"
-set "UtilityIncludeDirectory=-ISource\Utility"
+set "MutexClass=Source\Thread\Mutex.cpp"
+set "EventClass=Source\Thread\Event.cpp"
+set "ThreadClasses=%MutexClass% %EventClass%"
+set "ThreadIncludeDirectory=-ISource\Thread"
 
-set "AllClasses=%AudioClasses% %WindowClasses% %ComponentClasses% %UtilityClasses%"
+set "AllClasses=%AudioClasses% %WindowClasses% %ComponentClasses% %ThreadClasses%"
 
 set "IncludeDirectories=-ISource\Lib %AudioIncludeDirectory% %WindowIncludeDirectory% %ComponentIncludeDirectory% %UtilityIncludeDirectory%"
 set "MainFileDirectory=Source\Main.cu"

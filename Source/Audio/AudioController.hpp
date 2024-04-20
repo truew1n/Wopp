@@ -47,10 +47,6 @@ private:
     Mutex QueueLoopMutex;
     Event AudioFinishedEvent;
     
-    // HANDLE HAudioStreamMutex;
-    // HANDLE HQueueLoopMutex;
-    // HANDLE HAudioFinishedEvent;
-
     // Threads
     HANDLE HAudioStream;
     HANDLE HQueueLoop;
