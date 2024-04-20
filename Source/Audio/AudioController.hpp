@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "MutexVariable.hpp"
+#include "Thread.hpp"
 #include "Event.hpp"
 #include "Wave.h"
 
@@ -39,8 +40,8 @@ private:
     HWAVEOUT HWaveOut;
     WAVEHDR WaveHeader;
 
-    DWORD StartTime;
-    DWORD CurrentTime;
+    uint64_t StartTime;
+    uint64_t CurrentTime;
 
     // Mutexes
     Mutex AudioStreamMutex;
@@ -48,8 +49,8 @@ private:
     Event AudioFinishedEvent;
     
     // Threads
-    HANDLE HAudioStream;
-    HANDLE HQueueLoop;
+    Thread AudioStreamThread;
+    Thread QueueLoopThread;
 
     // States
     MutexVariable<bool> BLoop;
@@ -66,8 +67,8 @@ private:
 
     static void CALLBACK AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1);
     
-    static DWORD WINAPI AudioStream(LPVOID LParam);
-    static DWORD WINAPI QueueLoop(LPVOID LParam);
+    static uint32_t AudioStream(void *Parameter);
+    static uint32_t QueueLoop(void *Parameter);
 
 public:
     AudioController();

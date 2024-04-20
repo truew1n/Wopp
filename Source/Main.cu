@@ -14,6 +14,7 @@ LRESULT CALLBACK WinProcedure(HWND HWnd, UINT UMsg, WPARAM WParam, LPARAM LParam
 int main(void)
 {
     AudioController Controller = AudioController();
+
     Controller.Add(L"Assets\\Audio\\Selfless.wav");
     Controller.Add(L"Assets\\Audio\\Horse Race.wav");
     Controller.Add(L"Assets\\Audio\\Napoleon's song (Amour Plastique- slowed version).wav");
@@ -21,8 +22,8 @@ int main(void)
     Controller.Add(L"Assets\\Audio\\Aiyo - Below Freezing.wav");
     Controller.Add(L"Assets\\Audio\\George Michael - Careless Whisper (Lyrics).wav");
     
-    
     Controller.Start();
+    
 
     HINSTANCE WinInstance = GetModuleHandleW(NULL);
     

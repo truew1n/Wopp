@@ -32,9 +32,9 @@ void CALLBACK AudioController::AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg,
     }
 }
 
-DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
+uint32_t AudioController::AudioStream(void *Parameter)
 {
-    AudioController *Controller = (AudioController *) LParam;
+    AudioController *Controller = (AudioController *) Parameter;
     
     if(!Controller->CurrentSong.is_loaded) return 2;
 
@@ -100,9 +100,9 @@ DWORD WINAPI AudioController::AudioStream(LPVOID LParam)
     return 100;
 }
 
-DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
+uint32_t AudioController::QueueLoop(void *Parameter)
 {
-    AudioController *Controller = (AudioController *) LParam;
+    AudioController *Controller = (AudioController *) Parameter;
     
     Controller->QueueLoopMutex.Lock();
     if(Controller->BAudioStreamCreated.Get()) return 0;
@@ -118,11 +118,8 @@ DWORD WINAPI AudioController::QueueLoop(LPVOID LParam)
                 Controller->Load();
                 Controller->Skip(ESongQueueSkipOption::FORWARD);
             }
-            if (Controller->HAudioStream) {
-                CloseHandle(Controller->HAudioStream);
-                Controller->HAudioStream = NULL;
-            }
-            Controller->HAudioStream = CreateThread(NULL, 0, &AudioController::AudioStream, (LPVOID) Controller, 0, NULL);
+            Controller->AudioStreamThread.Free();
+            Controller->AudioStreamThread = Thread(&AudioController::AudioStream, (void *) Controller);
             
             Controller->BAudioStreamCreated.Set(true);
         }
@@ -149,8 +146,8 @@ AudioController::AudioController()
     HWaveOut = NULL;
     WaveHeader = {0};
 
-    DWORD StartTime = 0LU;
-    DWORD CurrentTime = 0LU;
+    StartTime = 0LU;
+    CurrentTime = 0LU;
 
     // Mutex
 
@@ -158,9 +155,8 @@ AudioController::AudioController()
     QueueLoopMutex = Mutex();
 
     // Threads
-
-    HAudioStream = NULL;
-    HQueueLoop = NULL;
+    AudioStreamThread = Thread();
+    QueueLoopThread = Thread();
     
 
     // States
@@ -183,7 +179,7 @@ void AudioController::Free()
     QueueLoopMutex.Unlock();
     AudioStreamMutex.Free();
     QueueLoopMutex.Free();
-    CloseHandle(HQueueLoop);
+    QueueLoopThread.Free();
 
     BLoop.Free();
     BQueueLoop.Free();
@@ -216,8 +212,7 @@ void AudioController::Start()
 {
     if(BQueueLoopCreated.Get()) return;
     
-    HQueueLoop = CreateThread(NULL, 0, &AudioController::QueueLoop, (LPVOID) this, 0, 0);
-    
+    QueueLoopThread = Thread(&AudioController::QueueLoop, (void *) this);
 }
 
 void AudioController::Stop()
