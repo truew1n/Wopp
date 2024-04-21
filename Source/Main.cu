@@ -15,15 +15,19 @@ int main(void)
 {
     AudioController Controller = AudioController();
 
-    Controller.Add(L"Assets\\Audio\\Selfless.wav");
-    Controller.Add(L"Assets\\Audio\\Horse Race.wav");
-    Controller.Add(L"Assets\\Audio\\Napoleon's song (Amour Plastique- slowed version).wav");
-    Controller.Add(L"Assets\\Audio\\Soviet  March.wav");
+    Controller.Add(L"Assets\\Audio\\Kungs vs Cookin on 3 Burners - This Girl (Official Music Video).wav");
     Controller.Add(L"Assets\\Audio\\Aiyo - Below Freezing.wav");
-    Controller.Add(L"Assets\\Audio\\George Michael - Careless Whisper (Lyrics).wav");
+    Controller.Add(L"Assets\\Audio\\Soviet  March.wav");
+    Controller.Add(L"Assets\\Audio\\Napoleon's song (Amour Plastique- slowed version).wav");
+    // Controller.Add(L"Assets\\Audio\\Selfless.wav");
+    // Controller.Add(L"Assets\\Audio\\Horse Race.wav");
+    // Controller.Add(L"Assets\\Audio\\Napoleon's song (Amour Plastique- slowed version).wav");
+    // Controller.Add(L"Assets\\Audio\\Soviet  March.wav");
+    // Controller.Add(L"Assets\\Audio\\Aiyo - Below Freezing.wav");
+    // Controller.Add(L"Assets\\Audio\\George Michael - Careless Whisper (Lyrics).wav");
     
     Controller.Start();
-    
+
 
     HINSTANCE WinInstance = GetModuleHandleW(NULL);
     
