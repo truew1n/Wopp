@@ -61,9 +61,6 @@ private:
     MutexVariable<EAudioStreamState> AudioStreamState;
 
 private:
-    static void SetupWaveFormatX(WAVEFORMATEX *WaveFormatX, wave_t *CurrentSong);
-    static void SetupWaveHeader(WAVEHDR *WaveHeader, wave_t *CurrentSong);
-
     static void AudioStreamCallback(void *Parameter, EDriverState DriverState);
     
     static uint32_t AudioStream(void *Parameter);

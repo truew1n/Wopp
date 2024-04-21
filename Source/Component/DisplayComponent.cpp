@@ -5,7 +5,12 @@ DisplayComponent::DisplayComponent()
 
 }
 
-DisplayComponent::~DisplayComponent()
+void DisplayComponent::Free()
 {
+    
+}
 
+void *DisplayComponent::GetDisplay()
+{
+    return Display;
 }

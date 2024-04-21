@@ -1,27 +1,6 @@
 #include "AudioController.hpp"
 
 
-void AudioController::SetupWaveFormatX(WAVEFORMATEX *WaveFormatX, wave_t *CurrentSong)
-{
-    WaveFormatX->nSamplesPerSec = CurrentSong->fmt_chunk.sample_rate;
-    WaveFormatX->wBitsPerSample = CurrentSong->fmt_chunk.bits_per_sample;
-    WaveFormatX->nChannels = CurrentSong->fmt_chunk.num_channels;
-    WaveFormatX->wFormatTag = CurrentSong->fmt_chunk.audio_format;
-    WaveFormatX->nBlockAlign = CurrentSong->fmt_chunk.block_align;
-    WaveFormatX->nAvgBytesPerSec = CurrentSong->fmt_chunk.byte_rate;
-    WaveFormatX->cbSize = 0;
-}
-
-void AudioController::SetupWaveHeader(WAVEHDR *WaveHeader, wave_t *CurrentSong)
-{
-    WaveHeader->lpData = CurrentSong->data_chunk.data;
-    WaveHeader->dwBufferLength = CurrentSong->data_chunk.subchunk_size;
-    WaveHeader->dwBytesRecorded = 0;
-    WaveHeader->dwUser = 0;
-    WaveHeader->dwFlags = 0;
-    WaveHeader->dwLoops = 0;
-}
-
 void AudioController::AudioStreamCallback(void *Parameter, EDriverState DriverState)
 {
     switch(DriverState) {
@@ -35,8 +14,6 @@ void AudioController::AudioStreamCallback(void *Parameter, EDriverState DriverSt
 uint32_t AudioController::AudioStream(void *Parameter)
 {
     AudioController *Controller = (AudioController *) Parameter;
-    
-    if(!Controller->CurrentSong.is_loaded) return 2;
 
     Controller->AudioStreamMutex.Lock();
 
