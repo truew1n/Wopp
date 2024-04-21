@@ -152,18 +152,3 @@ void AudioDriver::Play()
 #elif __linux__
 #endif
 }
-
-uint64_t GetTime()
-{
-
-}
-
-void SetTime(uint64_t NewTime)
-{
-
-}
-
-void Seek(uint64_t Offset, ESeekDirection Direction)
-{
-
-}

@@ -22,11 +22,11 @@ void AudioController::SetupWaveHeader(WAVEHDR *WaveHeader, wave_t *CurrentSong)
     WaveHeader->dwLoops = 0;
 }
 
-void CALLBACK AudioController::AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1)
+void AudioController::AudioStreamCallback(void *Parameter, EDriverState DriverState)
 {
-    switch(UMsg) {
-        case WOM_DONE: {
-            AudioController *Controller = (AudioController *) DwInstance;
+    switch(DriverState) {
+        case EDriverState::DONE: {
+            AudioController *Controller = (AudioController *) Parameter;
             Controller->AudioFinishedEvent.Send();
         }
     }
@@ -40,46 +40,14 @@ uint32_t AudioController::AudioStream(void *Parameter)
 
     Controller->AudioStreamMutex.Lock();
 
-    SetupWaveFormatX(&Controller->WaveFormatX, &Controller->CurrentSong);
-
     Controller->AudioFinishedEvent = Event();
-    Controller->HWaveOut = NULL;
+    Controller->Driver.Assign(&Controller->CurrentSong);
+    Controller->Driver.Open(&AudioController::AudioStreamCallback, (void *) Controller);
 
-    MMRESULT ReuseResult = MMSYSERR_NOERROR;
-    ReuseResult = waveOutOpen(
-        &Controller->HWaveOut, WAVE_MAPPER, &Controller->WaveFormatX,
-        (DWORD_PTR) &AudioController::AudioStreamCallback,
-        (DWORD_PTR) Controller,
-        CALLBACK_FUNCTION
-    ); if(ReuseResult != MMSYSERR_NOERROR) {
-        std::cerr << "AUDIO_STREAM: WaveOut device could not be opened!\n";
-        return 2;
-    }
-
-    SetupWaveHeader(&Controller->WaveHeader, &Controller->CurrentSong);
-    
-
-    ReuseResult = waveOutPrepareHeader(
-        Controller->HWaveOut,
-        &Controller->WaveHeader,
-        sizeof(WAVEHDR)
-    ); if(ReuseResult != MMSYSERR_NOERROR) {
-        std::cerr << "AUDIO_STREAM: Preparation of WaveHeader failed!\n";
-        waveOutClose(Controller->HWaveOut);
-        return 2;
-    }
+    Controller->Driver.Prepare();
 
 
-    ReuseResult = waveOutWrite(
-        Controller->HWaveOut,
-        &Controller->WaveHeader,
-        sizeof(WAVEHDR)
-    ); if(ReuseResult != MMSYSERR_NOERROR) {
-        std::cerr << "AUDIO_STREAM: Writing to WaveOut device failed!\n";
-        waveOutUnprepareHeader(Controller->HWaveOut, &Controller->WaveHeader, sizeof(WAVEHDR));
-        waveOutClose(Controller->HWaveOut);
-        return 2;
-    }
+    Controller->Driver.Write();
 
     Controller->StartTime = timeGetTime();
     Controller->CurrentTime = Controller->StartTime;
@@ -90,7 +58,7 @@ uint32_t AudioController::AudioStream(void *Parameter)
     Controller->AudioFinishedEvent.Wait();
     Controller->AudioFinishedEvent.Free();
     
-    waveOutClose(Controller->HWaveOut);
+    Controller->Driver.Close();
     
     Controller->AudioStreamState.Set(EAudioStreamState::IDLE);
     Controller->BAudioStreamCreated.Set(false);
@@ -141,10 +109,7 @@ AudioController::AudioController()
     CurrentSong = {0};
     
     // WaveOut Stuff
-
-    WaveFormatX = {0};
-    HWaveOut = NULL;
-    WaveHeader = {0};
+    Driver = AudioDriver();
 
     StartTime = 0LU;
     CurrentTime = 0LU;
@@ -230,11 +195,7 @@ void AudioController::Stop()
 void AudioController::Pause()
 {
     if(AudioStreamState.Get() == EAudioStreamState::PLAYING) {
-        MMRESULT ReuseResult = waveOutPause(HWaveOut);
-        if (ReuseResult != MMSYSERR_NOERROR) {
-            std::cerr << "AUDIO_STREAM: Pausing WaveOut device failed!\n";
-            return;
-        }
+        Driver.Pause();
         AudioStreamState.Set(EAudioStreamState::PAUSED);
     }
 }
@@ -242,11 +203,7 @@ void AudioController::Pause()
 void AudioController::Play()
 {
     if(AudioStreamState.Get() == EAudioStreamState::PAUSED) {
-        MMRESULT ReuseResult = waveOutRestart(HWaveOut);
-        if (ReuseResult != MMSYSERR_NOERROR) {
-            std::cerr << "AUDIO_STREAM: Unpausing WaveOut device failed!\n";
-            return;
-        }
+        Driver.Play();
         AudioStreamState.Set(EAudioStreamState::PLAYING);
     }
 }

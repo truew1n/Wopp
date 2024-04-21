@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <vector>
 
+#include "AudioDriver.hpp"
 #include "MutexVariable.hpp"
 #include "Thread.hpp"
 #include "Event.hpp"
@@ -35,10 +36,8 @@ private:
     std::wstring CurrentSongPath;
     wave_t CurrentSong;
 
-    // WaveOut Stuff
-    WAVEFORMATEX WaveFormatX;
-    HWAVEOUT HWaveOut;
-    WAVEHDR WaveHeader;
+    // Audio Driver
+    AudioDriver Driver;
 
     uint64_t StartTime;
     uint64_t CurrentTime;
@@ -65,7 +64,7 @@ private:
     static void SetupWaveFormatX(WAVEFORMATEX *WaveFormatX, wave_t *CurrentSong);
     static void SetupWaveHeader(WAVEHDR *WaveHeader, wave_t *CurrentSong);
 
-    static void CALLBACK AudioStreamCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1);
+    static void AudioStreamCallback(void *Parameter, EDriverState DriverState);
     
     static uint32_t AudioStream(void *Parameter);
     static uint32_t QueueLoop(void *Parameter);

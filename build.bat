@@ -5,7 +5,8 @@ if not exist Build\Debug ( mkdir Build\Debug )
 if not exist Build\Release ( mkdir Build\Release )
 
 set "AudioControllerClass=Source\Audio\AudioController.cpp"
-set "AudioClasses=%AudioControllerClass%"
+set "AudioDriverClass=Source\Audio\AudioDriver.cpp"
+set "AudioClasses=%AudioControllerClass% %AudioDriverClass%"
 set "AudioIncludeDirectory=-ISource\Audio"
 
 set "WindowClass=Source\Window\Window.cpp"

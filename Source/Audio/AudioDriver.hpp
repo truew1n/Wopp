@@ -8,13 +8,8 @@
 // Add Linux Equivalent
 #endif
 
-#include "MutexVariable.hpp"
 #include "Wave.h"
 
-enum class ESeekDirection : uint8_t {
-    FORWARD,
-    BACKWARD
-};
 
 enum class EDriverState : uint8_t {
     NONE,
@@ -55,8 +50,4 @@ public:
 
     void Pause();
     void Play();
-
-    uint64_t GetTime();
-    void SetTime(uint64_t NewTime);
-    void Seek(uint64_t Offset, ESeekDirection Direction);
 };
