@@ -15,20 +15,29 @@ int main(void)
 {
     AudioController Controller = AudioController();
 
-    Controller.Add(L"Assets\\Audio\\Kungs vs Cookin on 3 Burners - This Girl (Official Music Video).wav");
-    Controller.Add(L"Assets\\Audio\\Aiyo - Below Freezing.wav");
-    Controller.Add(L"Assets\\Audio\\Soviet  March.wav");
-    Controller.Add(L"Assets\\Audio\\Napoleon's song (Amour Plastique- slowed version).wav");
-    // Controller.Add(L"Assets\\Audio\\Selfless.wav");
-    // Controller.Add(L"Assets\\Audio\\Horse Race.wav");
-    // Controller.Add(L"Assets\\Audio\\Napoleon's song (Amour Plastique- slowed version).wav");
-    // Controller.Add(L"Assets\\Audio\\Soviet  March.wav");
-    // Controller.Add(L"Assets\\Audio\\Aiyo - Below Freezing.wav");
-    // Controller.Add(L"Assets\\Audio\\George Michael - Careless Whisper (Lyrics).wav");
-    
+    WIN32_FIND_DATAW findFileData;
+    HANDLE hFind;
+
+    LPCWSTR searchPath = L"Assets\\Audio\\*.wav";
+    hFind = FindFirstFileW(searchPath, &findFileData);
+    if (hFind == INVALID_HANDLE_VALUE) {
+        std::wcerr << L"Error finding files in directory" << std::endl;
+        return 1;
+    }
+
+    do {
+        std::wcout << findFileData.cFileName << std::endl;
+        Controller.Add(L"Assets\\Audio\\" + std::wstring(findFileData.cFileName));
+    } while (FindNextFileW(hFind, &findFileData) != 0);
+    FindClose(hFind);
+
+    // Controller.Add(L"Assets\\Audio\\Alle Farben feat. YouNotUs- Please Tell Rosie [Official Video].wav");
+    // Controller.Add(L"Assets\\Audio\\Kungs vs Cookin on 3 Burners - This Girl (Official Music Video).wav");
+    // Controller.Add(L"Assets\\Audio\\SAIL - AWOLNATION (Unofficial Video).wav");
+
     Controller.Start();
 
-
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
     HINSTANCE WinInstance = GetModuleHandleW(NULL);
     
     WNDCLASSW WinClass = {0};

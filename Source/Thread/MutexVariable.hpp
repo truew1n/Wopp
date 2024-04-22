@@ -31,6 +31,16 @@ public:
         ValueMutex.Unlock();
         return ReturnValue;
     }
+
+    template<typename R>
+    R Use(R (*SafeRoutine)(T *))
+    {
+        R ReturnValue = R();
+        ValueMutex.Lock();
+        ReturnValue = SafeRoutine(&Value);
+        ValueMutex.Unlock();
+        return ReturnValue;
+    }
     
     void Set(T NewValue)
     {
