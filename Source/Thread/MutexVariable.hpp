@@ -1,4 +1,5 @@
-#pragma once
+#ifndef WOPP_MUTEX_VARIABLE_HPP
+#define WOPP_MUTEX_VARIABLE_HPP
 
 #include <iostream>
 
@@ -49,3 +50,5 @@ public:
         ValueMutex.Unlock();
     }
 };
+
+#endif

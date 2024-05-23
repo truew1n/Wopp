@@ -21,7 +21,7 @@ Thread::Thread()
     FThreadParameter = NULL;
 }
 
-Thread::Thread(uint32_t (*Routine)(void *), void *Param)
+Thread::Thread(ThreadFunc Routine, void *Param)
 {
     FThreadParameter = (ThreadParam *) malloc(sizeof(ThreadParam));
     if(!FThreadParameter) return;

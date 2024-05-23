@@ -1,6 +1,8 @@
-#pragma once
+#ifndef WOPP_THREAD_HPP
+#define WOPP_THREAD_HPP
 
 #include <iostream>
+#include <cstdint>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -8,8 +10,9 @@
 #include <pthread.h>
 #endif
 
+typedef uint32_t (*ThreadFunc)(void *);
 typedef struct ThreadParam {
-    uint32_t (*Function)(void *);
+    ThreadFunc Function;
     void *Param;
 } ThreadParam;
 
@@ -25,7 +28,9 @@ private:
 #endif
 public:
     Thread();
-    Thread(uint32_t (*Routine)(void *), void *Param);
+    Thread(ThreadFunc Routine, void *Param);
 
     void Free();
 };
+
+#endif

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef WOPP_MUTEX_HPP
+#define WOPP_MUTEX_HPP
 
 #ifdef _WIN32
 #include <windows.h>
@@ -21,3 +22,5 @@ public:
     void Lock();
     void Unlock();
 };
+
+#endif

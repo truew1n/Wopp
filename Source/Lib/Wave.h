@@ -1,4 +1,9 @@
-#pragma once
+#ifndef WOPP_LIB_WAVE_H
+#define WOPP_LIB_WAVE_H
+
+#ifdef _cplusplus
+extern "C" {
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -170,3 +175,9 @@ inline wave_t wave_open(const wchar_t *filepath)
 
     return wave_file;
 }
+
+#ifdef _cplusplus
+}
+#endif
+
+#endif

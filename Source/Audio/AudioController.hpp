@@ -1,4 +1,5 @@
-#pragma once
+#ifndef WOPP_AUDIO_CONTROLLER_HPP
+#define WOPP_AUDIO_CONTROLLER_HPP
 
 #include <iostream>
 #include <windows.h>
@@ -94,3 +95,5 @@ public:
     void Last();
     void Next();
 };
+
+#endif

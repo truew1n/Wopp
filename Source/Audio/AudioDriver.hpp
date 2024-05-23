@@ -1,4 +1,5 @@
-#pragma once
+#ifndef WOPP_AUDIO_DRIVER_HPP
+#define WOPP_AUDIO_DRIVER_HPP
 
 #include <iostream>
 
@@ -23,16 +24,21 @@ typedef struct CallbackParam {
     void *Param;
 } CallbackParam;
 
+typedef struct Sample {
+    uint8_t *SampleData;
+    uint8_t DataSize;
+    int16_t BitsPerSample;
+    int16_t ChannelCount;
+} Sample;
+
 class AudioDriver {
 private:
 #ifdef _WIN32
     HWAVEOUT HWaveOut;
     WAVEFORMATEX WaveFormatX;
     WAVEHDR WaveHeader;
+    UINT_PTR TimerId;
     wave_t *CurrentSong;
-
-    uint64_t StartTime;
-    uint64_t CurrentTime;
 
     static void CALLBACK AudioDriverCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1);
 #elif __linux__
@@ -51,3 +57,5 @@ public:
     void Pause();
     void Play();
 };
+
+#endif

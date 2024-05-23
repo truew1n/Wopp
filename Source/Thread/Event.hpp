@@ -1,4 +1,5 @@
-#pragma once
+#ifndef WOPP_EVENT_HPP
+#define WOPP_EVENT_HPP
 
 #ifdef _WIN32
 #include <windows.h>
@@ -20,3 +21,5 @@ public:
     void Wait();
     void Send();
 };
+
+#endif
