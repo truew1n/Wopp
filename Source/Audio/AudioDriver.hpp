@@ -37,7 +37,6 @@ private:
     HWAVEOUT HWaveOut;
     WAVEFORMATEX WaveFormatX;
     WAVEHDR WaveHeader;
-    UINT_PTR TimerId;
     wave_t *CurrentSong;
 
     static void CALLBACK AudioDriverCallback(HWAVEOUT HWaveOut, UINT UMsg, DWORD_PTR DwInstance, DWORD_PTR DwParam0, DWORD_PTR DwParam1);

@@ -26,6 +26,10 @@ uint32_t AudioController::AudioStream(void *Parameter)
 
     Controller->Driver.Write();
 
+    if(Controller->BTimerSynchronize.Get()) {
+        Controller->AudioTimer.Start();
+    }
+
     Controller->StartTime = timeGetTime();
     Controller->CurrentTime = Controller->StartTime;
     Controller->AudioStreamState.Set(EAudioStreamState::PLAYING);
@@ -34,6 +38,10 @@ uint32_t AudioController::AudioStream(void *Parameter)
     // Waiting for playback to finish
     Controller->AudioFinishedEvent.Wait();
     Controller->AudioFinishedEvent.Free();
+
+    if(Controller->BTimerSynchronize.Get()) {
+        Controller->AudioTimer.Stop();
+    }
     
     Controller->Driver.Close();
     
@@ -100,9 +108,11 @@ AudioController::AudioController()
     AudioStreamThread = Thread();
     QueueLoopThread = Thread();
     
+    // Timer
+    AudioTimer = Timer();
+    BTimerSynchronize = MutexVariable<bool>(false);
 
     // States
-
     BLoop = MutexVariable<bool>(false);
     BQueueLoop = MutexVariable<bool>(true);
     BQueueLoopCreated = MutexVariable<bool>(false);
@@ -130,6 +140,8 @@ void AudioController::Free()
 
     BAudioStreamCreated.Free();
     AudioStreamState.Free();
+
+    AudioTimer.Stop();
 
     free(CurrentSong.data_chunk.data);
 }
@@ -253,4 +265,24 @@ void AudioController::Last()
 void AudioController::Next()
 {
     Skip(ESongQueueSkipOption::FORWARD);
+}
+
+wave_t *AudioController::GetWaveData()
+{
+    return &CurrentSong;
+}
+
+void AudioController::BindTimer(Timer AudioTimer, bool BTimerSynchronize)
+{
+    this->AudioTimer.Stop();
+    this->AudioTimer = AudioTimer;
+    this->BTimerSynchronize.Set(BTimerSynchronize);
+    if(!BTimerSynchronize) {
+        AudioTimer.Start();
+    }
+}
+
+void AudioController::UnbindTimer()
+{
+    AudioTimer.Stop();
 }

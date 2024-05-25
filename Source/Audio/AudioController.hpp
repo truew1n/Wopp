@@ -9,6 +9,7 @@
 #include "MutexVariable.hpp"
 #include "Thread.hpp"
 #include "Event.hpp"
+#include "Timer.hpp"
 #include "Wave.h"
 
 enum class ESeekDirection : uint8_t {
@@ -52,6 +53,11 @@ private:
     Thread AudioStreamThread;
     Thread QueueLoopThread;
 
+    // Timers
+
+    Timer AudioTimer;
+    MutexVariable<bool> BTimerSynchronize;
+
     // States
     MutexVariable<bool> BLoop;
     MutexVariable<bool> BQueueLoop;
@@ -94,6 +100,11 @@ public:
     void Skip(ESongQueueSkipOption Option);
     void Last();
     void Next();
+
+    wave_t *GetWaveData();
+
+    void BindTimer(Timer AudioTimer, bool BTimerSynchronize);
+    void UnbindTimer();
 };
 
 #endif

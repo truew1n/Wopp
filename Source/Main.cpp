@@ -2,18 +2,24 @@
 #include <windows.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-
 #include "AudioController.hpp"
-
 
 void ResizeCallback(GLFWwindow *Window, int32_t FrameBufferWidth, int32_t FrameBufferHeight)
 {
     glViewport(0, 0, FrameBufferWidth, FrameBufferHeight);
 }
 
+void PeriodicTimerCallback(void *Parameter)
+{
+    uint32_t *CParameter = (uint32_t *)Parameter;
+    printf("%i\n", *CParameter);
+    *CParameter += 1;
+}
+
 int main(void)
 {
-    if(!glfwInit()) {
+    if (!glfwInit())
+    {
         return -1;
     }
 
@@ -21,33 +27,57 @@ int main(void)
     uint32_t Height = 1080;
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
     std::string WindowTitle = "Wopp - Wave Audio Player";
 
     GLFWwindow *Window = glfwCreateWindow(Width, Height, WindowTitle.c_str(), NULL, NULL);
-    if(!Window) {
+    if (!Window)
+    {
         fprintf(stderr, "Failed to create GLFW Window!\n");
         glfwTerminate();
         return -1;
     }
 
     glfwSetFramebufferSizeCallback(Window, ResizeCallback);
-    
     glfwMakeContextCurrent(Window);
-
     glfwSwapInterval(1);
-    if(glewInit() != GLEW_OK) {
+
+    if (glewInit() != GLEW_OK)
+    {
         fprintf(stderr, "Glew failed to initialize!\n");
         return -1;
     }
 
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
 
-    glEnable(GL_DEPTH_TEST);
+    AudioController Controller;
 
+    WIN32_FIND_DATAW findFileData;
+    HANDLE hFind;
+
+    LPCWSTR searchPath = L"Assets\\Audio\\*.wav";
+    hFind = FindFirstFileW(searchPath, &findFileData);
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        std::wcerr << L"Error finding files in directory" << std::endl;
+        return 1;
+    }
+
+    do
+    {
+        Controller.Add(L"Assets\\Audio\\" + std::wstring(findFileData.cFileName));
+    } while (FindNextFileW(hFind, &findFileData) != 0);
+    FindClose(hFind);
+
+    uint32_t TestVar = 1;
+    TimerParam Parameter = {PeriodicTimerCallback, &TestVar};
+    Timer AudioTimer(1000U, 0U, &Parameter, TimerType::PERIODIC);
+    Controller.BindTimer(AudioTimer, true);
+    Controller.Start();
+
+    glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     glFrontFace(GL_CCW);
@@ -61,31 +91,14 @@ int main(void)
     std::string MS;
     std::string NewWindowTitle;
 
-    AudioController Controller = AudioController();
-
-    WIN32_FIND_DATAW findFileData;
-    HANDLE hFind;
-
-    LPCWSTR searchPath = L"Assets\\Audio\\*.wav";
-    hFind = FindFirstFileW(searchPath, &findFileData);
-    if (hFind == INVALID_HANDLE_VALUE) {
-        std::wcerr << L"Error finding files in directory" << std::endl;
-        return 1;
-    }
-
-    do {
-        Controller.Add(L"Assets\\Audio\\" + std::wstring(findFileData.cFileName));
-    } while (FindNextFileW(hFind, &findFileData) != 0);
-    FindClose(hFind);
-
-    Controller.Start();
-
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    while(!glfwWindowShouldClose(Window)) {
+    while (!glfwWindowShouldClose(Window))
+    {
         CurrentTime = glfwGetTime();
         TimeDifference = CurrentTime - PreviouseTime;
         FrameCounter++;
-        if(TimeDifference >= 1.0 / 30.0) {
+        if (TimeDifference >= 1.0 / 30.0)
+        {
             FPS = std::to_string((1.0 / TimeDifference) * FrameCounter);
             MS = std::to_string((TimeDifference / FrameCounter) * 1000.0);
             NewWindowTitle = WindowTitle + " - " + FPS + "FPS / " + MS + "ms";
@@ -97,10 +110,11 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         
+
         glfwSwapBuffers(Window);
         glfwPollEvents();
     }
-    
+
     glfwDestroyWindow(Window);
     glfwTerminate();
 

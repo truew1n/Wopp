@@ -10,9 +10,9 @@
 #include <pthread.h>
 #endif
 
-typedef uint32_t (*ThreadFunc)(void *);
+
 typedef struct ThreadParam {
-    ThreadFunc Function;
+    uint32_t (*Function)(void *);
     void *Param;
 } ThreadParam;
 
@@ -28,7 +28,7 @@ private:
 #endif
 public:
     Thread();
-    Thread(ThreadFunc Routine, void *Param);
+    Thread(uint32_t (*Routine)(void *), void *Param);
 
     void Free();
 };
