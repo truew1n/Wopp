@@ -286,3 +286,8 @@ void AudioController::UnbindTimer()
 {
     AudioTimer.Stop();
 }
+
+EAudioStreamState AudioController::GetAudioStreamState()
+{
+    return AudioStreamState.Get();
+}

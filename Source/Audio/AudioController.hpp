@@ -105,6 +105,8 @@ public:
 
     void BindTimer(Timer AudioTimer, bool BTimerSynchronize);
     void UnbindTimer();
+
+    EAudioStreamState GetAudioStreamState();
 };
 
 #endif
