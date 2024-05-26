@@ -20,7 +20,7 @@ const char* fragmentShaderSource = R"(
     out vec4 FragColor;
     void main()
     {
-        FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        FragColor = vec4(0.0, 1.0, 0.0, 1.0);
     }
 )";
 
@@ -39,36 +39,37 @@ void renderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint 
 {
     wave_t* wave = controller.GetWaveData();
 
-    if (wave->data_chunk.data == nullptr || wave->data_chunk.subchunk_size == 0)
-    {
+    if (wave->data_chunk.data == nullptr || wave->data_chunk.subchunk_size == 0) {
         return;
     }
 
     int16_t* samples = (int16_t*)wave->data_chunk.data;
     size_t sampleCount = wave->data_chunk.subchunk_size / (wave->fmt_chunk.bits_per_sample / 8);
+    int channels = wave->fmt_chunk.num_channels;
 
     int64_t startSample = currentMillisecond * wave->fmt_chunk.sample_rate / 1000;
     int64_t endSample = (currentMillisecond + 100) * wave->fmt_chunk.sample_rate / 1000; // 100 milliseconds
 
-    if (startSample >= sampleCount || endSample > sampleCount || startSample >= endSample)
-    {
+    if (startSample >= sampleCount || endSample > sampleCount || startSample >= endSample) {
         std::cerr << "Invalid sample range." << std::endl;
         return;
     }
 
-    std::vector<float> vertices((endSample - startSample) * 6); // Preallocate memory
+    std::vector<float> vertices((endSample - startSample) * channels * 6); // Preallocate memory
 
-    for (int64_t i = startSample, j = 0; i < endSample; i++, j += 6)
-    {
-        float x = (float)(i - startSample) / (endSample - startSample) * 2.0f - 1.0f;
-        float y = (samples[i] / 32768.0f);
+    for (int64_t i = startSample, idx = 0; i < endSample; i++) {
+        for (int ch = 0; ch < channels; ++ch, idx += 6) {
+            float x = (float)(i - startSample) / (endSample - startSample) * 2.0f - 1.0f;
+            float yOffset = 2.0f / channels * ch - 1.0f + 1.0f / channels;
+            float y = (samples[i * channels + ch] / 32768.0f) + yOffset;
 
-        vertices[j] = x;
-        vertices[j + 1] = y;
-        vertices[j + 2] = 0.0f;
-        vertices[j + 3] = x;
-        vertices[j + 4] = 0.0f;
-        vertices[j + 5] = 0.0f;
+            vertices[idx] = x;
+            vertices[idx + 1] = y;
+            vertices[idx + 2] = 0.0f;
+            vertices[idx + 3] = x;
+            vertices[idx + 4] = yOffset;
+            vertices[idx + 5] = 0.0f;
+        }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -224,7 +225,11 @@ int main(void)
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        renderWaveform(Controller, VAO, VBO, shaderProgram, CurrentMillisecond);
+        if(Controller.GetAudioStreamState() == EAudioStreamState::PLAYING) {
+            renderWaveform(Controller, VAO, VBO, shaderProgram, CurrentMillisecond);
+        } else {
+            CurrentMillisecond = 0U;
+        }
 
         glfwSwapBuffers(Window);
         glfwPollEvents();
@@ -240,4 +245,3 @@ int main(void)
     Controller.Free();
     return 0;
 }
-

@@ -77,6 +77,8 @@ uint32_t AudioController::QueueLoop(void *Parameter)
             Controller->BAudioStreamCreated.Set(true);
         }
         Controller->AudioStreamMutex.Unlock();
+        Controller->UnbindTimer();
+        Controller->BindTimer(Controller->AudioTimer, true);
     } while((Controller->BLoop.Get() || Controller->BQueueLoop.Get()) && !Controller->BInterrupt.Get());
 
     Controller->BQueueLoopCreated.Set(false);
