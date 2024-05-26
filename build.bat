@@ -25,6 +25,6 @@ set "BuildType=Debug"
 
 set "OutputDirectory=Build\%BuildType%"
 
-g++ -o %OutputDirectory%/Main %MainFileDirectory% %AllClasses% -lglfw3 -lglew32 -lopengl32 -lwinmm %IncludeDirectories%
+g++ -o %OutputDirectory%/Wopp %MainFileDirectory% %AllClasses% -lglfw3 -lglew32 -lopengl32 -lwinmm %IncludeDirectories%
 
-"%OutputDirectory%\Main.exe"
+"%OutputDirectory%\Wopp.exe"
