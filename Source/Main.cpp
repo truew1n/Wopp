@@ -9,7 +9,7 @@
 
 #define PERIODIC_TIMER 50U
 
-// Vertex shader source code
+// Vertex shader Source code
 const char* vertexShaderSource = R"(
     #version 460 core
     layout(location = 0) in vec3 aPos;
@@ -19,7 +19,7 @@ const char* vertexShaderSource = R"(
     }
 )";
 
-// Fragment shader source code
+// Fragment shader Source code
 const char* fragmentShaderSource = R"(
     #version 460 core
     out vec4 FragColor;
@@ -40,9 +40,9 @@ void PeriodicTimerCallback(void *Parameter)
     *CParameter += PERIODIC_TIMER;
 }
 
-void RenderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
+void RenderWaveform(AudioController& Controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
 {
-    wave_t* Wave = controller.GetWaveData();
+    wave_t* Wave = Controller.GetWaveData();
 
     if (Wave->data_chunk.data == nullptr || Wave->data_chunk.subchunk_size == 0) {
         return;
@@ -86,9 +86,9 @@ void RenderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint 
     glDrawArrays(GL_LINES, 0, Vertices.size() / 3);
 }
 
-void RenderEqualizer(AudioController& controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
+void RenderEqualizer(AudioController& Controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
 {
-    wave_t* Wave = controller.GetWaveData();
+    wave_t* Wave = Controller.GetWaveData();
 
     if (Wave->data_chunk.data == nullptr || Wave->data_chunk.subchunk_size == 0) {
         return;
@@ -164,43 +164,43 @@ void RenderEqualizer(AudioController& controller, GLuint VAO, GLuint VBO, GLuint
     glDrawArrays(GL_TRIANGLES, 0, Vertices.size() / 3);
 }
 
-GLuint CompileShader(GLenum type, const char* source)
+GLuint CompileShader(GLenum Type, const char* Source)
 {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, NULL);
+    GLuint shader = glCreateShader(Type);
+    glShaderSource(shader, 1, &Source, NULL);
     glCompileShader(shader);
 
-    int success;
-    char infoLog[512];
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if(!success) {
-        glGetShaderInfoLog(shader, 512, NULL, infoLog);
-        std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << infoLog << std::endl;
+    int Success;
+    char InfoLog[512];
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &Success);
+    if(!Success) {
+        glGetShaderInfoLog(shader, 512, NULL, InfoLog);
+        std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << InfoLog << std::endl;
     }
 
     return shader;
 }
 
-GLuint CreateShaderProgram(const char* vertexSource, const char* fragmentSource)
+GLuint CreateShaderProgram(const char* VertexSource, const char* FragmentSource)
 {
-    GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSource);
-    GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSource);
+    GLuint VertexShader = CompileShader(GL_VERTEX_SHADER, VertexSource);
+    GLuint FragmentShader = CompileShader(GL_FRAGMENT_SHADER, FragmentSource);
 
     GLuint ShaderProgram = glCreateProgram();
-    glAttachShader(ShaderProgram, vertexShader);
-    glAttachShader(ShaderProgram, fragmentShader);
+    glAttachShader(ShaderProgram, VertexShader);
+    glAttachShader(ShaderProgram, FragmentShader);
     glLinkProgram(ShaderProgram);
 
-    int success;
-    char infoLog[512];
-    glGetProgramiv(ShaderProgram, GL_LINK_STATUS, &success);
-    if(!success) {
-        glGetProgramInfoLog(ShaderProgram, 512, NULL, infoLog);
-        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+    int Success;
+    char InfoLog[512];
+    glGetProgramiv(ShaderProgram, GL_LINK_STATUS, &Success);
+    if(!Success) {
+        glGetProgramInfoLog(ShaderProgram, 512, NULL, InfoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << InfoLog << std::endl;
     }
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    glDeleteShader(VertexShader);
+    glDeleteShader(FragmentShader);
 
     return ShaderProgram;
 }
