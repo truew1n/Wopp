@@ -3,6 +3,9 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include "AudioController.hpp"
+#include <vector>
+#include <algorithm>
+#include <cmath>
 
 // Vertex shader source code
 const char* vertexShaderSource = R"(
@@ -35,49 +38,130 @@ void PeriodicTimerCallback(void *Parameter)
     *CParameter += 100;
 }
 
-void renderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint shaderProgram, uint64_t currentMillisecond)
+void RenderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
 {
-    wave_t* wave = controller.GetWaveData();
+    wave_t* Wave = controller.GetWaveData();
 
-    if (wave->data_chunk.data == nullptr || wave->data_chunk.subchunk_size == 0) {
+    if (Wave->data_chunk.data == nullptr || Wave->data_chunk.subchunk_size == 0) {
         return;
     }
 
-    int16_t* samples = (int16_t*)wave->data_chunk.data;
-    size_t sampleCount = wave->data_chunk.subchunk_size / (wave->fmt_chunk.bits_per_sample / 8);
-    int channels = wave->fmt_chunk.num_channels;
+    int16_t* Samples = (int16_t*)Wave->data_chunk.data;
+    size_t SampleCount = Wave->data_chunk.subchunk_size / (Wave->fmt_chunk.bits_per_sample / 8);
+    int Channels = Wave->fmt_chunk.num_channels;
 
-    int64_t startSample = currentMillisecond * wave->fmt_chunk.sample_rate / 1000;
-    int64_t endSample = (currentMillisecond + 100) * wave->fmt_chunk.sample_rate / 1000; // 100 milliseconds
+    int64_t StartSample = CurrentMillisecond * Wave->fmt_chunk.sample_rate / 1000;
+    int64_t EndSample = (CurrentMillisecond + 100) * Wave->fmt_chunk.sample_rate / 1000;
 
-    if (startSample >= sampleCount || endSample > sampleCount || startSample >= endSample) {
+    if(StartSample >= SampleCount || EndSample > SampleCount || StartSample >= EndSample) {
         std::cerr << "Invalid sample range." << std::endl;
         return;
     }
 
-    std::vector<float> vertices((endSample - startSample) * channels * 6); // Preallocate memory
+    std::vector<float> Vertices((EndSample - StartSample) * Channels * 6);
 
-    for (int64_t i = startSample, idx = 0; i < endSample; i++) {
-        for (int ch = 0; ch < channels; ++ch, idx += 6) {
-            float x = (float)(i - startSample) / (endSample - startSample) * 2.0f - 1.0f;
-            float yOffset = 2.0f / channels * ch - 1.0f + 1.0f / channels;
-            float y = (samples[i * channels + ch] / 32768.0f) + yOffset;
+    for(int64_t i = StartSample, idx = 0; i < EndSample; ++i) {
+        for(int ch = 0; ch < Channels; ++ch, idx += 6) {
+            float X = (float)(i - StartSample) / (EndSample - StartSample) * 2.0f - 1.0f;
+            float YOffset = 2.0f / Channels * ch - 1.0f + 1.0f / Channels;
+            float Y = (Samples[i * Channels + ch] / 32768.0f) + YOffset;
 
-            vertices[idx] = x;
-            vertices[idx + 1] = y;
-            vertices[idx + 2] = 0.0f;
-            vertices[idx + 3] = x;
-            vertices[idx + 4] = yOffset;
-            vertices[idx + 5] = 0.0f;
+            Vertices[idx] = X;
+            Vertices[idx + 1] = Y;
+            Vertices[idx + 2] = 0.0f;
+
+            Vertices[idx + 3] = X;
+            Vertices[idx + 4] = YOffset;
+            Vertices[idx + 5] = 0.0f;
         }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, Vertices.size() * sizeof(float), Vertices.data(), GL_DYNAMIC_DRAW);
 
-    glUseProgram(shaderProgram);
+    glUseProgram(ShaderProgram);
     glBindVertexArray(VAO);
-    glDrawArrays(GL_LINES, 0, vertices.size() / 3);
+    glDrawArrays(GL_LINES, 0, Vertices.size() / 3);
+}
+
+void RenderEqualizer(AudioController& controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
+{
+    wave_t* Wave = controller.GetWaveData();
+
+    if (Wave->data_chunk.data == nullptr || Wave->data_chunk.subchunk_size == 0) {
+        return;
+    }
+
+    int16_t* Samples = (int16_t*)Wave->data_chunk.data;
+    size_t SampleCount = Wave->data_chunk.subchunk_size / (Wave->fmt_chunk.bits_per_sample / 8);
+    int Channels = Wave->fmt_chunk.num_channels;
+
+    int64_t StartSample = CurrentMillisecond * Wave->fmt_chunk.sample_rate / 1000;
+    int64_t EndSample = (CurrentMillisecond + 100) * Wave->fmt_chunk.sample_rate / 1000;
+
+    if(StartSample >= SampleCount || EndSample > SampleCount || StartSample >= EndSample) {
+        std::cerr << "Invalid sample range." << std::endl;
+        return;
+    }
+
+    int BarCount = 200; // Number of bars in the equalizer
+    int FrequencyRange = 65536 / BarCount; // Range of frequencies for each bar
+
+    std::vector<float> Vertices(BarCount * 6 * 6); // Each bar has 6 vertices * 6 coordinates (x, y, z)
+    std::vector<int> FrequencyCounts(BarCount, 0); // Count of frequencies in each range
+
+    // Count frequencies in each range
+    for (int64_t i = StartSample; i < EndSample; i++) {
+        for (int ch = 0; ch < Channels; ++ch) {
+            int16_t Sample = Samples[i * Channels + ch];
+            int FrequencyIndex = (Sample + 32768) / FrequencyRange; // Map int16 range to 0-65535
+            if (FrequencyIndex >= 0 && FrequencyIndex < BarCount) {
+                FrequencyCounts[FrequencyIndex]++;
+            }
+        }
+    }
+
+    int MaxCount = *std::max_element(FrequencyCounts.begin(), FrequencyCounts.end());
+
+    for (int bar = 0; bar < BarCount; ++bar) {
+        float X = (float)bar / BarCount * 2.0f - 1.0f;
+        float Width = 2.0f / BarCount * 0.8f; // Bar width (80% of allocated space)
+        float Height = (float)FrequencyCounts[bar] / MaxCount * 2.0f; // Normalize height to [-1, 1]
+
+        int idx = bar * 6 * 6;
+
+        // Create vertices for the bar
+        Vertices[idx]     = X;
+        Vertices[idx + 1] = -1.0f;
+        Vertices[idx + 2] = 0.0f;
+
+        Vertices[idx + 3] = X + Width;
+        Vertices[idx + 4] = -1.0f;
+        Vertices[idx + 5] = 0.0f;
+
+        Vertices[idx + 6] = X + Width;
+        Vertices[idx + 7] = -1.0f + Height;
+        Vertices[idx + 8] = 0.0f;
+
+        Vertices[idx + 9] = X;
+        Vertices[idx + 10] = -1.0f;
+        Vertices[idx + 11] = 0.0f;
+
+        Vertices[idx + 12] = X + Width;
+        Vertices[idx + 13] = -1.0f + Height;
+        Vertices[idx + 14] = 0.0f;
+
+        Vertices[idx + 15] = X;
+        Vertices[idx + 16] = -1.0f + Height;
+        Vertices[idx + 17] = 0.0f;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, Vertices.size() * sizeof(float), Vertices.data(), GL_DYNAMIC_DRAW);
+
+    glUseProgram(ShaderProgram);
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, Vertices.size() / 3);
 }
 
 GLuint CompileShader(GLenum type, const char* source)
@@ -89,8 +173,7 @@ GLuint CompileShader(GLenum type, const char* source)
     int success;
     char infoLog[512];
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
+    if(!success) {
         glGetShaderInfoLog(shader, 512, NULL, infoLog);
         std::cerr << "ERROR::SHADER::COMPILATION_FAILED\n" << infoLog << std::endl;
     }
@@ -103,30 +186,28 @@ GLuint CreateShaderProgram(const char* vertexSource, const char* fragmentSource)
     GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSource);
     GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSource);
 
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
+    GLuint ShaderProgram = glCreateProgram();
+    glAttachShader(ShaderProgram, vertexShader);
+    glAttachShader(ShaderProgram, fragmentShader);
+    glLinkProgram(ShaderProgram);
 
     int success;
     char infoLog[512];
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success)
-    {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+    glGetProgramiv(ShaderProgram, GL_LINK_STATUS, &success);
+    if(!success) {
+        glGetProgramInfoLog(ShaderProgram, 512, NULL, infoLog);
         std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
     }
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-    return shaderProgram;
+    return ShaderProgram;
 }
 
 int main(void)
 {
-    if (!glfwInit())
-    {
+    if(!glfwInit()) {
         return -1;
     }
 
@@ -140,8 +221,7 @@ int main(void)
     std::string WindowTitle = "Wopp - Wave Audio Player";
 
     GLFWwindow *Window = glfwCreateWindow(Width, Height, WindowTitle.c_str(), NULL, NULL);
-    if (!Window)
-    {
+    if(!Window) {
         fprintf(stderr, "Failed to create GLFW Window!\n");
         glfwTerminate();
         return -1;
@@ -151,15 +231,14 @@ int main(void)
     glfwMakeContextCurrent(Window);
     glfwSwapInterval(0);
 
-    if (glewInit() != GLEW_OK)
-    {
+    if(glewInit() != GLEW_OK) {
         fprintf(stderr, "Glew failed to initialize!\n");
         return -1;
     }
 
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
 
-    GLuint shaderProgram = CreateShaderProgram(vertexShaderSource, fragmentShaderSource);
+    GLuint ShaderProgram = CreateShaderProgram(vertexShaderSource, fragmentShaderSource);
 
     AudioController Controller;
 
@@ -168,14 +247,12 @@ int main(void)
 
     LPCWSTR searchPath = L"Assets\\Audio\\*.wav";
     hFind = FindFirstFileW(searchPath, &findFileData);
-    if (hFind == INVALID_HANDLE_VALUE)
-    {
+    if(hFind == INVALID_HANDLE_VALUE) {
         std::wcerr << L"Error finding files in directory" << std::endl;
         return 1;
     }
 
-    do
-    {
+    do {
         Controller.Add(L"Assets\\Audio\\" + std::wstring(findFileData.cFileName));
     } while (FindNextFileW(hFind, &findFileData) != 0);
     FindClose(hFind);
@@ -208,13 +285,11 @@ int main(void)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    while (!glfwWindowShouldClose(Window))
-    {
+    while(!glfwWindowShouldClose(Window)) {
         CurrentTime = glfwGetTime();
         TimeDifference = CurrentTime - PreviouseTime;
         FrameCounter++;
-        if (TimeDifference >= 1.0 / 30.0)
-        {
+        if (TimeDifference >= 1.0 / 30.0) {
             FPS = std::to_string((1.0 / TimeDifference) * FrameCounter);
             MS = std::to_string((TimeDifference / FrameCounter) * 1000.0);
             NewWindowTitle = WindowTitle + " - " + FPS + "FPS / " + MS + "ms";
@@ -226,7 +301,8 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         if(Controller.GetAudioStreamState() == EAudioStreamState::PLAYING) {
-            renderWaveform(Controller, VAO, VBO, shaderProgram, CurrentMillisecond);
+            // RenderWaveform(Controller, VAO, VBO, ShaderProgram, CurrentMillisecond);
+            RenderEqualizer(Controller, VAO, VBO, ShaderProgram, CurrentMillisecond);
         } else {
             CurrentMillisecond = 0U;
         }
@@ -237,7 +313,7 @@ int main(void)
 
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
-    glDeleteProgram(shaderProgram);
+    glDeleteProgram(ShaderProgram);
 
     glfwDestroyWindow(Window);
     glfwTerminate();
