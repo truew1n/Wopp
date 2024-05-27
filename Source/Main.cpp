@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 
+#define PERIODIC_TIMER 50U
+
 // Vertex shader source code
 const char* vertexShaderSource = R"(
     #version 460 core
@@ -35,7 +37,7 @@ void ResizeCallback(GLFWwindow *Window, int32_t FrameBufferWidth, int32_t FrameB
 void PeriodicTimerCallback(void *Parameter)
 {
     uint64_t *CParameter = (uint64_t *)Parameter;
-    *CParameter += 100;
+    *CParameter += PERIODIC_TIMER;
 }
 
 void RenderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint ShaderProgram, uint64_t CurrentMillisecond)
@@ -51,7 +53,7 @@ void RenderWaveform(AudioController& controller, GLuint VAO, GLuint VBO, GLuint 
     int Channels = Wave->fmt_chunk.num_channels;
 
     int64_t StartSample = CurrentMillisecond * Wave->fmt_chunk.sample_rate / 1000;
-    int64_t EndSample = (CurrentMillisecond + 100) * Wave->fmt_chunk.sample_rate / 1000;
+    int64_t EndSample = (CurrentMillisecond + PERIODIC_TIMER) * Wave->fmt_chunk.sample_rate / 1000;
 
     if(StartSample >= SampleCount || EndSample > SampleCount || StartSample >= EndSample) {
         std::cerr << "Invalid sample range." << std::endl;
@@ -97,24 +99,23 @@ void RenderEqualizer(AudioController& controller, GLuint VAO, GLuint VBO, GLuint
     int Channels = Wave->fmt_chunk.num_channels;
 
     int64_t StartSample = CurrentMillisecond * Wave->fmt_chunk.sample_rate / 1000;
-    int64_t EndSample = (CurrentMillisecond + 100) * Wave->fmt_chunk.sample_rate / 1000;
+    int64_t EndSample = (CurrentMillisecond + PERIODIC_TIMER) * Wave->fmt_chunk.sample_rate / 1000;
 
     if(StartSample >= SampleCount || EndSample > SampleCount || StartSample >= EndSample) {
         std::cerr << "Invalid sample range." << std::endl;
         return;
     }
 
-    int BarCount = 200; // Number of bars in the equalizer
-    int FrequencyRange = 65536 / BarCount; // Range of frequencies for each bar
+    int BarCount = 200;
+    int FrequencyRange = 65536 / BarCount;
 
-    std::vector<float> Vertices(BarCount * 6 * 6); // Each bar has 6 vertices * 6 coordinates (x, y, z)
-    std::vector<int> FrequencyCounts(BarCount, 0); // Count of frequencies in each range
+    std::vector<float> Vertices(BarCount * 6 * 6);
+    std::vector<int> FrequencyCounts(BarCount, 0);
 
-    // Count frequencies in each range
     for (int64_t i = StartSample; i < EndSample; i++) {
         for (int ch = 0; ch < Channels; ++ch) {
             int16_t Sample = Samples[i * Channels + ch];
-            int FrequencyIndex = (Sample + 32768) / FrequencyRange; // Map int16 range to 0-65535
+            int FrequencyIndex = (Sample + 32768) / FrequencyRange;
             if (FrequencyIndex >= 0 && FrequencyIndex < BarCount) {
                 FrequencyCounts[FrequencyIndex]++;
             }
@@ -123,14 +124,13 @@ void RenderEqualizer(AudioController& controller, GLuint VAO, GLuint VBO, GLuint
 
     int MaxCount = *std::max_element(FrequencyCounts.begin(), FrequencyCounts.end());
 
-    for (int bar = 0; bar < BarCount; ++bar) {
-        float X = (float)bar / BarCount * 2.0f - 1.0f;
+    for (int Bar = 0; Bar < BarCount; ++Bar) {
+        float X = (float)Bar / BarCount * 2.0f - 1.0f;
         float Width = 2.0f / BarCount * 0.8f; // Bar width (80% of allocated space)
-        float Height = (float)FrequencyCounts[bar] / MaxCount * 2.0f; // Normalize height to [-1, 1]
+        float Height = (float)FrequencyCounts[Bar] / MaxCount * 2.0f;
 
-        int idx = bar * 6 * 6;
+        int idx = Bar * 6 * 6;
 
-        // Create vertices for the bar
         Vertices[idx]     = X;
         Vertices[idx + 1] = -1.0f;
         Vertices[idx + 2] = 0.0f;
@@ -259,7 +259,7 @@ int main(void)
 
     uint64_t CurrentMillisecond = 0;
     TimerParam Parameter = {PeriodicTimerCallback, &CurrentMillisecond};
-    Timer AudioTimer(100U, 0U, &Parameter, TimerType::PERIODIC);
+    Timer AudioTimer(PERIODIC_TIMER, 0U, &Parameter, TimerType::PERIODIC);
     Controller.BindTimer(AudioTimer, true);
     Controller.Start();
 
